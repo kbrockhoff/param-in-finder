@@ -8,14 +8,27 @@
   <artifactId>param-in-selector</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>param-in-selector</name>
-  <!-- FIXME change it to the project's website -->
-  <url>http://www.example.com</url>
+  <name>RDBMS Testing Parameter In Selector</name>
+  <description>Retrieves query parameter values from RDBMS existing data for use in testing.</description>
+  <url>https://github.com/kbrockhoff/param-in-selector</url>
+  <inceptionYear>2018</inceptionYear>
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://github.com/kbrockhoff/param-in-selector/blob/master/LICENSE</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Kevin Brockhoff</name>
+      <email>kbrockhoff@codekaizen.org</email>
+    </developer>
+  </developers>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>1.7</maven.compiler.source>
-    <maven.compiler.target>1.7</maven.compiler.target>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
   </properties>
 
   <dependencies>
