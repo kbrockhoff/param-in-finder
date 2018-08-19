@@ -19,6 +19,8 @@ import com.google.common.graph.MutableValueGraph;
 import com.google.common.graph.ValueGraph;
 import com.google.common.graph.ValueGraphBuilder;
 
+import javax.inject.Inject;
+import javax.inject.Named;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -31,6 +33,8 @@ import java.util.Map;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.nullToEmpty;
 
 /**
  * Queries the RDBMS to find stored procedure in parameters which will result in
@@ -38,52 +42,111 @@ import static com.google.common.base.Preconditions.checkNotNull;
  *
  * @author kbrockhoff
  */
+@Named("inParameterFinder")
 public class InParameterFinder {
 
     private final DataSource dataSource;
+    private String catalog;
+    private String schema;
     private final Map<String, ValueGraph<String, String>> relationshipMap = new HashMap<>();
 
+    /**
+     * Constructs a finder instance.
+     *
+     * @param dataSource the database connection pool
+     */
+    @Inject
     public InParameterFinder(DataSource dataSource) {
         checkNotNull(dataSource, "dataSource is required parameter");
         this.dataSource = dataSource;
     }
 
-    public List<Object> findValidParameters(List<InParamRequirement> paramList, int minResultSetSize) {
+    /**
+     * Returns the default database catalog name.
+     *
+     * @return the catalog name or <code>null</code>
+     */
+    public String getCatalog() {
+        return catalog;
+    }
+
+    /**
+     * Sets the default database catalog name.
+     *
+     * @param catalog the catalog name or <code>null</code>
+     */
+    public void setCatalog(String catalog) {
+        this.catalog = emptyToNull(catalog);
+    }
+
+    /**
+     * Returns the default database schema name.
+     *
+     * @return the schema name or <code>null</code>
+     */
+    public String getSchema() {
+        return schema;
+    }
+
+    /**
+     * Sets the default database schema name.
+     *
+     * @param schema the schema name or <code>null</code>
+     */
+    public void setSchema(String schema) {
+        this.schema = emptyToNull(schema);
+    }
+
+    public List<Object> findValidParameters(List<InParamRequirement> paramList, int minResultSetSize)
+            throws SQLException {
         checkArgument(paramList != null && !paramList.isEmpty(), "paramList cannot be empty");
         List<Object> results = new ArrayList<>(paramList.size());
+        for (InParamRequirement req : paramList) {
+            ValueGraph<String, String> graph = getTableRelationships((String) req.getCatalog().orElse(getCatalog()),
+                    (String) req.getSchema().orElse(getSchema()), req.getTable());
+        }
         return results;
     }
 
-    private ValueGraph<String, String> getTableRelationships(String tableName) throws SQLException {
-        ValueGraph<String, String> graph = relationshipMap.get(tableName);
+    private ValueGraph<String, String> getTableRelationships(String catalog, String schema, String table)
+            throws SQLException {
+        String key = constructMapKey(catalog, schema, table);
+        ValueGraph<String, String> graph = relationshipMap.get(key);
         if (graph == null) {
-            graph = retrieveTableGraph(tableName);
-            relationshipMap.put(tableName, graph);
+            graph = retrieveTableGraph(catalog, schema, table);
+            relationshipMap.put(key, graph);
         }
         return graph;
     }
 
-    private ValueGraph<String, String> retrieveTableGraph(String tableName) throws SQLException {
+    private ValueGraph<String, String> retrieveTableGraph(String catalog, String schema, String table)
+            throws SQLException {
         MutableValueGraph<String, String> graph = ValueGraphBuilder.directed().allowsSelfLoops(true).build();
-        graph.addNode(tableName);
+        graph.addNode(table);
         try (Connection conn = getConnection()) {
             DatabaseMetaData dm = conn.getMetaData();
-            try (ResultSet rs = dm.getImportedKeys(null, null, tableName)) {
+            try (ResultSet rs = dm.getImportedKeys(catalog, schema, table)) {
                 while (rs.next()) {
                     String tblName = rs.getString("FKTABLE_NAME");
                     graph.addNode(tblName);
-                    graph.putEdgeValue(tableName, tblName, rs.getString("FKCOLUMN_NAME"));
+                    graph.putEdgeValue(table, tblName, rs.getString("FKCOLUMN_NAME"));
                 }
             }
-            try (ResultSet rs = dm.getExportedKeys(null, null, tableName)) {
+            try (ResultSet rs = dm.getExportedKeys(catalog, schema, table)) {
                 while (rs.next()) {
                     String tblName = rs.getString("FKTABLE_NAME");
                     graph.addNode(tblName);
-                    graph.putEdgeValue(tableName, tblName, rs.getString("FKCOLUMN_NAME"));
+                    graph.putEdgeValue(table, tblName, rs.getString("FKCOLUMN_NAME"));
                 }
             }
         }
         return graph;
+    }
+
+    private String constructMapKey(String catalog, String schema, String table) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(nullToEmpty(catalog)).append('.').append(nullToEmpty(schema)).append('.').append(table);
+        return builder.toString();
     }
 
     private Connection getConnection() throws SQLException {

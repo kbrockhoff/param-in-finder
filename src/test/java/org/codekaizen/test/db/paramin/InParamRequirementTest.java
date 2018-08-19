@@ -39,7 +39,8 @@ public class InParamRequirementTest {
     public void shouldConstructRequirementWithAcceptableValuesList() {
         List<String> acceptable = Arrays.asList("administrator", "poweruser");
         InParamRequirement<String> requirement = InParamRequirement.builder(String.class)
-                .setSchema("public").setTable("users").setColumn("usertype").addAcceptableValue(acceptable.get(0)).addAcceptableValue(acceptable.get(1)).build();
+                .setSchema("public").setTable("users").setColumn("usertype").addAcceptableValue(acceptable.get(0))
+                .addAcceptableValue(acceptable.get(1)).build();
         acceptable.forEach(val -> assertTrue(requirement.isAcceptableValue(val)));
         assertFalse(requirement.isAcceptableValue("guest"));
     }
@@ -69,6 +70,14 @@ public class InParamRequirementTest {
         InParamRequirement<DayOfWeek> requirement = InParamRequirement.builder(DayOfWeek.class)
                 .setTable("users").setColumn("best_day").build();
         assertTrue(requirement.isAcceptableValue(DayOfWeek.FRIDAY));
+    }
+
+    @Test
+    public void shouldUtilizeCustomAcceptorIfProvided() {
+        InParamRequirement<Integer> requirement = InParamRequirement.builder(Integer.class)
+                .setTable("users").setColumn("ranking").setAcceptor(v -> v.compareTo(8) < 0).build();
+        assertTrue(requirement.isAcceptableValue(4));
+        assertFalse(requirement.isAcceptableValue(16));
     }
 
 }

@@ -21,9 +21,9 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -37,10 +37,22 @@ import static com.google.common.base.Strings.isNullOrEmpty;
  */
 public class InParamRequirement<T extends Comparable<? super T>> {
 
-    public static <T extends Comparable<? super T>> Builder<T> builder(Class<T> columnJavaType) {
-        return new Builder<>(columnJavaType);
+    /**
+     * Instantiates a requirement builder for the specified Java type.
+     *
+     * @param javaType the parameter class
+     * @param <T> the parameter type
+     * @return the builder
+     */
+    public static <T extends Comparable<? super T>> Builder<T> builder(Class<T> javaType) {
+        return new Builder<>(javaType);
     }
 
+    /**
+     * Builder for a requirement instance.
+     *
+     * @param <T> the parameter type
+     */
     public static class Builder<T extends Comparable<? super T>> {
 
         private String catalog;
@@ -52,35 +64,28 @@ public class InParamRequirement<T extends Comparable<? super T>> {
         private T minValue = null;
         private T maxValue = null;
         private ImmutableList.Builder<T> acceptableValues = ImmutableList.builder();
+        private ValueAcceptor<T> acceptor = v -> v != null;
 
         private Builder(Class<T> javaType) {
             checkNotNull(javaType, "javaType is required parameter");
             this.javaType = javaType;
             if (String.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.VARCHAR;
-            }
-            else if (BigDecimal.class.isAssignableFrom(javaType)) {
+            } else if (BigDecimal.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.DECIMAL;
-            }
-            else if (Integer.class.isAssignableFrom(javaType)) {
+            } else if (Integer.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.INTEGER;
-            }
-            else if (Long.class.isAssignableFrom(javaType)) {
+            } else if (Long.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.BIGINT;
-            }
-            else if (Date.class.isAssignableFrom(javaType)) {
+            } else if (Date.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.DATE;
-            }
-            else if (Timestamp.class.isAssignableFrom(javaType)) {
+            } else if (Timestamp.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.TIMESTAMP;
-            }
-            else if (Character.class.isAssignableFrom(javaType)) {
+            } else if (Character.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.CHAR;
-            }
-            else if (Boolean.class.isAssignableFrom(javaType)) {
+            } else if (Boolean.class.isAssignableFrom(javaType)) {
                 sqlType = JDBCType.BOOLEAN;
-            }
-            else {
+            } else {
                 throw new IllegalArgumentException(javaType.getName() + " is unsupported type");
             }
         }
@@ -123,8 +128,15 @@ public class InParamRequirement<T extends Comparable<? super T>> {
             return this;
         }
 
+        public Builder setAcceptor(ValueAcceptor<T> acceptor) {
+            checkNotNull(acceptor, "acceptor cannot be null");
+            this.acceptor = acceptor;
+            return this;
+        }
+
         public InParamRequirement<T> build() {
-            return new InParamRequirement<>(catalog, schema, table, column, sqlType, javaType, minValue, maxValue, acceptableValues.build());
+            return new InParamRequirement<>(catalog, schema, table, column, sqlType, javaType, minValue, maxValue,
+                    acceptableValues.build(), acceptor);
         }
 
     }
@@ -138,8 +150,11 @@ public class InParamRequirement<T extends Comparable<? super T>> {
     private final T minValue;
     private final T maxValue;
     private final List<T> acceptableValues;
+    private final ValueAcceptor<T> acceptor;
 
-    private InParamRequirement(String catalog, String schema, String table, String column, JDBCType sqlType, Class<T> javaType, T minValue, T maxValue, List<T> acceptableValues) {
+    private InParamRequirement(String catalog, String schema, String table, String column, JDBCType sqlType,
+                               Class<T> javaType, T minValue, T maxValue, List<T> acceptableValues,
+                               ValueAcceptor<T> acceptor) {
         checkArgument(!isNullOrEmpty(table), "table is required");
         checkArgument(!isNullOrEmpty(column), "column is required");
         this.catalog = catalog;
@@ -151,14 +166,15 @@ public class InParamRequirement<T extends Comparable<? super T>> {
         this.minValue = minValue;
         this.maxValue = maxValue;
         this.acceptableValues = acceptableValues;
+        this.acceptor = acceptor;
     }
 
-    public String getCatalog() {
-        return catalog;
+    public Optional<String> getCatalog() {
+        return Optional.ofNullable(catalog);
     }
 
-    public String getSchema() {
-        return schema;
+    public Optional<String> getSchema() {
+        return Optional.ofNullable(schema);
     }
 
     public String getTable() {
@@ -194,8 +210,7 @@ public class InParamRequirement<T extends Comparable<? super T>> {
         boolean result;
         if (!acceptableValues.isEmpty()) {
             result = acceptableValues.contains(value);
-        }
-        else if (minValue != null || maxValue != null) {
+        } else if (minValue != null || maxValue != null) {
             result = true;
             if (minValue != null) {
                 result = minValue.compareTo(value) <= 0;
@@ -203,9 +218,11 @@ public class InParamRequirement<T extends Comparable<? super T>> {
             if (result && maxValue != null) {
                 result = maxValue.compareTo(value) >= 0;
             }
-        }
-        else {
+        } else {
             result = true;
+        }
+        if (result) {
+            result = acceptor.isAcceptableValue(value);
         }
         return result;
     }
