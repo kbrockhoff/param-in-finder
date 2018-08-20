@@ -97,11 +97,11 @@ public class InParameterFinder {
         this.schema = emptyToNull(schema);
     }
 
-    public List<Object> findValidParameters(List<InParamRequirement> paramList, int minResultSetSize)
+    public List<Object> findValidParameters(List<ParamRequirement> paramList, int minResultSetSize)
             throws SQLException {
         checkArgument(paramList != null && !paramList.isEmpty(), "paramList cannot be empty");
         List<Object> results = new ArrayList<>(paramList.size());
-        for (InParamRequirement req : paramList) {
+        for (ParamRequirement req : paramList) {
             ValueGraph<String, String> graph = getTableRelationships((String) req.getCatalog().orElse(getCatalog()),
                     (String) req.getSchema().orElse(getSchema()), req.getTable());
         }

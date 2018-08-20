@@ -27,20 +27,21 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
- * Unit tests for InParamRequirement.
+ * Unit tests for ParamRequirement.
  *
  * @author kbrockhoff
  */
-public class InParamRequirementTest {
+public class ParamRequirementTest {
 
     @Test
     public void shouldConstructRequirementWithAcceptableValuesList() {
         List<String> acceptable = Arrays.asList("administrator", "poweruser");
-        InParamRequirement<String> requirement = InParamRequirement.builder(String.class)
-                .setSchema("public").setTable("users").setColumn("usertype").addAcceptableValue(acceptable.get(0))
-                .addAcceptableValue(acceptable.get(1)).build();
+        ParamRequirement<String> requirement = ParamRequirement.builder(String.class)
+                .setSchema("public").setTable("users").setColumn("usertype")
+                .setAcceptor(Acceptors.getValidListAcceptor(acceptable)).build();
         acceptable.forEach(val -> assertTrue(requirement.isAcceptableValue(val)));
         assertFalse(requirement.isAcceptableValue("guest"));
     }
@@ -50,16 +51,18 @@ public class InParamRequirementTest {
         Instant when = Instant.parse("2018-08-12T00:00:00Z");
         Timestamp min = new Timestamp(when.toEpochMilli());
         Timestamp max = new Timestamp(when.plus(Duration.ofDays(7L)).toEpochMilli());
-        InParamRequirement<Timestamp> requirement = InParamRequirement.builder(Timestamp.class)
-                .setTable("users").setColumn("active_ts").setMinValue(min).setMaxValue(max).build();
+        ParamRequirement<Timestamp> requirement = ParamRequirement.builder(Timestamp.class)
+                .setTable("users").setColumn("active_ts")
+                .setAcceptor(Acceptors.getMinMaxAcceptor(min, max)).build();
         assertTrue(requirement.isAcceptableValue(min));
-        assertTrue(requirement.isAcceptableValue(max));
-        assertFalse(requirement.isAcceptableValue(new Timestamp(when.minus(Duration.ofDays(2)).toEpochMilli())));
+        assertFalse(requirement.isAcceptableValue(max));
+        assertTrue(requirement.isAcceptableValue(new Timestamp(when.plus(Duration.ofDays(2)).toEpochMilli())));
+        assertFalse(requirement.isAcceptableValue(new Timestamp(when.minus(Duration.ofDays(4)).toEpochMilli())));
     }
 
     @Test
     public void shouldConstructRequirementWithNoRestrictions() {
-        InParamRequirement<BigDecimal> requirement = InParamRequirement.builder(BigDecimal.class)
+        ParamRequirement<BigDecimal> requirement = ParamRequirement.builder(BigDecimal.class)
                 .setTable("users").setColumn("employee_id").build();
         assertTrue(requirement.isAcceptableValue(new BigDecimal("234879892")));
         assertTrue(requirement.isAcceptableValue(new BigDecimal("18.44")));
@@ -67,14 +70,23 @@ public class InParamRequirementTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void shouldThrowExceptionOnUnsupportedType() {
-        InParamRequirement<DayOfWeek> requirement = InParamRequirement.builder(DayOfWeek.class)
+        ParamRequirement<DayOfWeek> requirement = ParamRequirement.builder(DayOfWeek.class)
                 .setTable("users").setColumn("best_day").build();
         assertTrue(requirement.isAcceptableValue(DayOfWeek.FRIDAY));
     }
 
     @Test
+    public void shouldConstructRequirementWithRegexAcceptor() {
+        ParamRequirement<String> requirement = ParamRequirement.builder(String.class)
+                .setSchema("public").setTable("users").setWhere("usertype=\'poweruser\'").setColumn("username")
+                .setAcceptor(Acceptors.getRegexStringAcceptor(Pattern.compile("^[ABCabc].+"))).build();
+        assertTrue(requirement.isAcceptableValue("antman"));
+        assertFalse(requirement.isAcceptableValue("scarletwidow"));
+    }
+
+    @Test
     public void shouldUtilizeCustomAcceptorIfProvided() {
-        InParamRequirement<Integer> requirement = InParamRequirement.builder(Integer.class)
+        ParamRequirement<Integer> requirement = ParamRequirement.builder(Integer.class)
                 .setTable("users").setColumn("ranking").setAcceptor(v -> v.compareTo(8) < 0).build();
         assertTrue(requirement.isAcceptableValue(4));
         assertFalse(requirement.isAcceptableValue(16));

@@ -21,7 +21,7 @@ package org.codekaizen.test.db.paramin;
  * @author kbrockhoff
  */
 @FunctionalInterface
-public interface ValueAcceptor<T extends Comparable<? super T>> {
+public interface Acceptor<T extends Comparable<? super T>> {
 
     /**
      * Returns whether the provided value is acceptable for the current use case or not.

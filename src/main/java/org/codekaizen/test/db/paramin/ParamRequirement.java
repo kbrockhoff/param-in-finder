@@ -15,13 +15,10 @@
  */
 package org.codekaizen.test.db.paramin;
 
-import com.google.common.collect.ImmutableList;
-
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.Timestamp;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -35,7 +32,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
  *
  * @author kbrockhoff
  */
-public class InParamRequirement<T extends Comparable<? super T>> {
+public class ParamRequirement<T extends Comparable<? super T>> {
 
     /**
      * Instantiates a requirement builder for the specified Java type.
@@ -59,12 +56,10 @@ public class InParamRequirement<T extends Comparable<? super T>> {
         private String schema;
         private String table;
         private String column;
+        private String where;
         private JDBCType sqlType;
         private final Class<T> javaType;
-        private T minValue = null;
-        private T maxValue = null;
-        private ImmutableList.Builder<T> acceptableValues = ImmutableList.builder();
-        private ValueAcceptor<T> acceptor = v -> v != null;
+        private Acceptor<T> acceptor = Acceptors.getAllAcceptor();
 
         private Builder(Class<T> javaType) {
             checkNotNull(javaType, "javaType is required parameter");
@@ -112,31 +107,26 @@ public class InParamRequirement<T extends Comparable<? super T>> {
             return this;
         }
 
-        public Builder setMinValue(T minValue) {
-            this.minValue = minValue;
+        public Builder setWhere(String where) {
+            this.where = emptyToNull(where);
             return this;
         }
 
-        public Builder setMaxValue(T maxValue) {
-            this.maxValue = maxValue;
-            return this;
-        }
-
-        public Builder addAcceptableValue(T value) {
-            checkNotNull(value, "value is required parameter");
-            acceptableValues.add(value);
-            return this;
-        }
-
-        public Builder setAcceptor(ValueAcceptor<T> acceptor) {
+        public Builder setAcceptor(Acceptor<T> acceptor) {
             checkNotNull(acceptor, "acceptor cannot be null");
             this.acceptor = acceptor;
             return this;
         }
 
-        public InParamRequirement<T> build() {
-            return new InParamRequirement<>(catalog, schema, table, column, sqlType, javaType, minValue, maxValue,
-                    acceptableValues.build(), acceptor);
+        /**
+         * Constructs the requirement from the values provided to the builder or the default if a value
+         * is not provided.
+         *
+         * @return the immutable requirement object
+         * @throws IllegalArgumentException if any required values have not been specified
+         */
+        public ParamRequirement<T> build() {
+            return new ParamRequirement<>(catalog, schema, table, column, where, sqlType, javaType, acceptor);
         }
 
     }
@@ -145,27 +135,22 @@ public class InParamRequirement<T extends Comparable<? super T>> {
     private final String schema;
     private final String table;
     private final String column;
+    private final String where;
     private final JDBCType sqlType;
     private final Class<T> javaType;
-    private final T minValue;
-    private final T maxValue;
-    private final List<T> acceptableValues;
-    private final ValueAcceptor<T> acceptor;
+    private final Acceptor<T> acceptor;
 
-    private InParamRequirement(String catalog, String schema, String table, String column, JDBCType sqlType,
-                               Class<T> javaType, T minValue, T maxValue, List<T> acceptableValues,
-                               ValueAcceptor<T> acceptor) {
+    private ParamRequirement(String catalog, String schema, String table, String column, String where,
+                             JDBCType sqlType, Class<T> javaType, Acceptor<T> acceptor) {
         checkArgument(!isNullOrEmpty(table), "table is required");
         checkArgument(!isNullOrEmpty(column), "column is required");
         this.catalog = catalog;
         this.schema = schema;
         this.table = table;
         this.column = column;
+        this.where = where;
         this.sqlType = sqlType;
         this.javaType = javaType;
-        this.minValue = minValue;
-        this.maxValue = maxValue;
-        this.acceptableValues = acceptableValues;
         this.acceptor = acceptor;
     }
 
@@ -185,6 +170,10 @@ public class InParamRequirement<T extends Comparable<? super T>> {
         return column;
     }
 
+    public String getWhere() {
+        return where;
+    }
+
     public JDBCType getSqlType() {
         return sqlType;
     }
@@ -193,65 +182,34 @@ public class InParamRequirement<T extends Comparable<? super T>> {
         return javaType;
     }
 
-    public T getMinValue() {
-        return minValue;
-    }
-
-    public T getMaxValue() {
-        return maxValue;
-    }
-
-    public List<T> getAcceptableValues() {
-        return acceptableValues;
-    }
-
     public boolean isAcceptableValue(T value) {
         checkNotNull(value, "value is required parameter");
-        boolean result;
-        if (!acceptableValues.isEmpty()) {
-            result = acceptableValues.contains(value);
-        } else if (minValue != null || maxValue != null) {
-            result = true;
-            if (minValue != null) {
-                result = minValue.compareTo(value) <= 0;
-            }
-            if (result && maxValue != null) {
-                result = maxValue.compareTo(value) >= 0;
-            }
-        } else {
-            result = true;
-        }
-        if (result) {
-            result = acceptor.isAcceptableValue(value);
-        }
-        return result;
+        return acceptor.isAcceptableValue(value);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InParamRequirement<?> that = (InParamRequirement<?>) o;
+        ParamRequirement<?> that = (ParamRequirement<?>) o;
         return Objects.equals(catalog, that.catalog) &&
                 Objects.equals(schema, that.schema) &&
                 Objects.equals(table, that.table) &&
                 Objects.equals(column, that.column) &&
+                Objects.equals(where, that.where) &&
                 sqlType == that.sqlType &&
-                Objects.equals(javaType, that.javaType) &&
-                Objects.equals(minValue, that.minValue) &&
-                Objects.equals(maxValue, that.maxValue) &&
-                Objects.equals(acceptableValues, that.acceptableValues);
+                Objects.equals(javaType, that.javaType);
     }
 
     @Override
     public int hashCode() {
 
-        return Objects.hash(catalog, schema, table, column, sqlType, javaType, minValue, maxValue, acceptableValues);
+        return Objects.hash(catalog, schema, table, column, where, sqlType, javaType);
     }
 
     @Override
     public String toString() {
-        return "InParamRequirement{" +
+        return "ParamRequirement{" +
                 "table='" + table + '\'' +
                 ", column='" + column + '\'' +
                 '}';
