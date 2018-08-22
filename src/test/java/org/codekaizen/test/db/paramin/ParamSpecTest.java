@@ -30,16 +30,16 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Unit tests for ParamRequirement.
+ * Unit tests for ParamSpec.
  *
  * @author kbrockhoff
  */
-public class ParamRequirementTest {
+public class ParamSpecTest {
 
     @Test
     public void shouldConstructRequirementWithAcceptableValuesList() {
         List<String> acceptable = Arrays.asList("administrator", "poweruser");
-        ParamRequirement<String> requirement = ParamRequirement.builder(String.class)
+        ParamSpec<String> requirement = ParamSpec.builder(String.class)
                 .setSchema("public").setTable("users").setColumn("usertype")
                 .setAcceptor(Acceptors.getValidListAcceptor(acceptable)).build();
         acceptable.forEach(val -> assertTrue(requirement.isAcceptableValue(val)));
@@ -51,7 +51,7 @@ public class ParamRequirementTest {
         Instant when = Instant.parse("2018-08-12T00:00:00Z");
         Timestamp min = new Timestamp(when.toEpochMilli());
         Timestamp max = new Timestamp(when.plus(Duration.ofDays(7L)).toEpochMilli());
-        ParamRequirement<Timestamp> requirement = ParamRequirement.builder(Timestamp.class)
+        ParamSpec<Timestamp> requirement = ParamSpec.builder(Timestamp.class)
                 .setTable("users").setColumn("active_ts")
                 .setAcceptor(Acceptors.getMinMaxAcceptor(min, max)).build();
         assertTrue(requirement.isAcceptableValue(min));
@@ -62,7 +62,7 @@ public class ParamRequirementTest {
 
     @Test
     public void shouldConstructRequirementWithNoRestrictions() {
-        ParamRequirement<BigDecimal> requirement = ParamRequirement.builder(BigDecimal.class)
+        ParamSpec<BigDecimal> requirement = ParamSpec.builder(BigDecimal.class)
                 .setTable("users").setColumn("employee_id").build();
         assertTrue(requirement.isAcceptableValue(new BigDecimal("234879892")));
         assertTrue(requirement.isAcceptableValue(new BigDecimal("18.44")));
@@ -70,14 +70,14 @@ public class ParamRequirementTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void shouldThrowExceptionOnUnsupportedType() {
-        ParamRequirement<DayOfWeek> requirement = ParamRequirement.builder(DayOfWeek.class)
+        ParamSpec<DayOfWeek> requirement = ParamSpec.builder(DayOfWeek.class)
                 .setTable("users").setColumn("best_day").build();
         assertTrue(requirement.isAcceptableValue(DayOfWeek.FRIDAY));
     }
 
     @Test
     public void shouldConstructRequirementWithRegexAcceptor() {
-        ParamRequirement<String> requirement = ParamRequirement.builder(String.class)
+        ParamSpec<String> requirement = ParamSpec.builder(String.class)
                 .setSchema("public").setTable("users").setWhere("usertype=\'poweruser\'").setColumn("username")
                 .setAcceptor(Acceptors.getRegexStringAcceptor(Pattern.compile("^[ABCabc].+"))).build();
         assertTrue(requirement.isAcceptableValue("antman"));
@@ -86,7 +86,7 @@ public class ParamRequirementTest {
 
     @Test
     public void shouldUtilizeCustomAcceptorIfProvided() {
-        ParamRequirement<Integer> requirement = ParamRequirement.builder(Integer.class)
+        ParamSpec<Integer> requirement = ParamSpec.builder(Integer.class)
                 .setTable("users").setColumn("ranking").setAcceptor(v -> v.compareTo(8) < 0).build();
         assertTrue(requirement.isAcceptableValue(4));
         assertFalse(requirement.isAcceptableValue(16));

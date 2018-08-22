@@ -34,7 +34,7 @@ import java.util.Map;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.emptyToNull;
-import static com.google.common.base.Strings.nullToEmpty;
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 /**
  * Queries the RDBMS to find stored procedure in parameters which will result in
@@ -97,20 +97,22 @@ public class InParameterFinder {
         this.schema = emptyToNull(schema);
     }
 
-    public List<Object> findValidParameters(List<ParamRequirement> paramList, int minResultSetSize)
+    public List<Object> findValidParameters(List<ParamSpec> paramList, int minResultSetSize)
             throws SQLException {
         checkArgument(paramList != null && !paramList.isEmpty(), "paramList cannot be empty");
         List<Object> results = new ArrayList<>(paramList.size());
-        for (ParamRequirement req : paramList) {
-            ValueGraph<String, String> graph = getTableRelationships((String) req.getCatalog().orElse(getCatalog()),
-                    (String) req.getSchema().orElse(getSchema()), req.getTable());
+        List<String> selectDistincts = new ArrayList<>();
+        StringBuilder fullSql = new StringBuilder();
+        for (ParamSpec spec : paramList) {
+            ValueGraph<String, String> graph = getTableRelationships((String) spec.getCatalog().orElse(getCatalog()),
+                    (String) spec.getSchema().orElse(getSchema()), spec.getTable());
         }
         return results;
     }
 
     private ValueGraph<String, String> getTableRelationships(String catalog, String schema, String table)
             throws SQLException {
-        String key = constructMapKey(catalog, schema, table);
+        String key = constructTableName(catalog, schema, table);
         ValueGraph<String, String> graph = relationshipMap.get(key);
         if (graph == null) {
             graph = retrieveTableGraph(catalog, schema, table);
@@ -121,31 +123,51 @@ public class InParameterFinder {
 
     private ValueGraph<String, String> retrieveTableGraph(String catalog, String schema, String table)
             throws SQLException {
+        String tblName = constructTableName(catalog, schema, table);
         MutableValueGraph<String, String> graph = ValueGraphBuilder.directed().allowsSelfLoops(true).build();
-        graph.addNode(table);
+        graph.addNode(tblName);
         try (Connection conn = getConnection()) {
             DatabaseMetaData dm = conn.getMetaData();
             try (ResultSet rs = dm.getImportedKeys(catalog, schema, table)) {
                 while (rs.next()) {
-                    String tblName = rs.getString("FKTABLE_NAME");
-                    graph.addNode(tblName);
-                    graph.putEdgeValue(table, tblName, rs.getString("FKCOLUMN_NAME"));
+                    String fkTblName = constructTableName(rs.getString("FKTABLE_CAT"),
+                            rs.getString("FKTABLE_SCHEM"), rs.getString("FKTABLE_NAME"));
+                    graph.addNode(fkTblName);
+                    StringBuilder builder = new StringBuilder();
+                    builder.append(tblName).append(".").append(rs.getString("PKCOLUMN_NAME"))
+                            .append("=").append(fkTblName).append(rs.getString("FKCOLUMN_NAME"));
+                    graph.putEdgeValue(table, fkTblName, builder.toString());
                 }
             }
             try (ResultSet rs = dm.getExportedKeys(catalog, schema, table)) {
                 while (rs.next()) {
-                    String tblName = rs.getString("FKTABLE_NAME");
-                    graph.addNode(tblName);
-                    graph.putEdgeValue(table, tblName, rs.getString("FKCOLUMN_NAME"));
+                    String pkTblName = constructTableName(rs.getString("PKTABLE_CAT"),
+                            rs.getString("PKTABLE_SCHEM"), rs.getString("PKTABLE_NAME"));
+                    graph.addNode(pkTblName);
+                    StringBuilder builder = new StringBuilder();
+                    builder.append(pkTblName).append(".").append(rs.getString("PKCOLUMN_NAME"))
+                            .append("=").append(tblName).append(rs.getString("FKCOLUMN_NAME"));
+                    graph.putEdgeValue(table, pkTblName, builder.toString());
                 }
             }
         }
         return graph;
     }
 
-    private String constructMapKey(String catalog, String schema, String table) {
+    private String constructTableName(ParamSpec spec) {
+        return constructTableName((String) spec.getCatalog().orElse(getCatalog()),
+                (String) spec.getSchema().orElse(getSchema()), spec.getTable());
+    }
+
+    private String constructTableName(String catalog, String schema, String table) {
         StringBuilder builder = new StringBuilder();
-        builder.append(nullToEmpty(catalog)).append('.').append(nullToEmpty(schema)).append('.').append(table);
+        if (!isNullOrEmpty(catalog)) {
+            builder.append(catalog).append('.');
+        }
+        if (!isNullOrEmpty(schema)) {
+            builder.append(schema).append('.');
+        }
+        builder.append(table);
         return builder.toString();
     }
 

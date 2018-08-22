@@ -32,7 +32,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
  *
  * @author kbrockhoff
  */
-public class ParamRequirement<T extends Comparable<? super T>> {
+public class ParamSpec<T extends Comparable<? super T>> {
 
     /**
      * Instantiates a requirement builder for the specified Java type.
@@ -125,8 +125,8 @@ public class ParamRequirement<T extends Comparable<? super T>> {
          * @return the immutable requirement object
          * @throws IllegalArgumentException if any required values have not been specified
          */
-        public ParamRequirement<T> build() {
-            return new ParamRequirement<>(catalog, schema, table, column, where, sqlType, javaType, acceptor);
+        public ParamSpec<T> build() {
+            return new ParamSpec<>(catalog, schema, table, column, where, sqlType, javaType, acceptor);
         }
 
     }
@@ -140,8 +140,8 @@ public class ParamRequirement<T extends Comparable<? super T>> {
     private final Class<T> javaType;
     private final Acceptor<T> acceptor;
 
-    private ParamRequirement(String catalog, String schema, String table, String column, String where,
-                             JDBCType sqlType, Class<T> javaType, Acceptor<T> acceptor) {
+    private ParamSpec(String catalog, String schema, String table, String column, String where,
+                      JDBCType sqlType, Class<T> javaType, Acceptor<T> acceptor) {
         checkArgument(!isNullOrEmpty(table), "table is required");
         checkArgument(!isNullOrEmpty(column), "column is required");
         this.catalog = catalog;
@@ -170,8 +170,8 @@ public class ParamRequirement<T extends Comparable<? super T>> {
         return column;
     }
 
-    public String getWhere() {
-        return where;
+    public Optional<String> getWhere() {
+        return Optional.ofNullable(where);
     }
 
     public JDBCType getSqlType() {
@@ -191,7 +191,7 @@ public class ParamRequirement<T extends Comparable<? super T>> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ParamRequirement<?> that = (ParamRequirement<?>) o;
+        ParamSpec<?> that = (ParamSpec<?>) o;
         return Objects.equals(catalog, that.catalog) &&
                 Objects.equals(schema, that.schema) &&
                 Objects.equals(table, that.table) &&
@@ -209,7 +209,7 @@ public class ParamRequirement<T extends Comparable<? super T>> {
 
     @Override
     public String toString() {
-        return "ParamRequirement{" +
+        return "ParamSpec{" +
                 "table='" + table + '\'' +
                 ", column='" + column + '\'' +
                 '}';

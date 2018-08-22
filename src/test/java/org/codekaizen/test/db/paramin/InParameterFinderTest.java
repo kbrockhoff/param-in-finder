@@ -30,7 +30,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static org.junit.Assert.*;
 
 /**
@@ -56,9 +58,11 @@ public class InParameterFinderTest {
 
     @Test
     public void findValidParameters() throws SQLException {
-        Connection conn = dataSource.getConnection();
-        assertNotNull(conn);
-        conn.close();
+        List<ParamSpec> paramList = new ArrayList<>();
+        paramList.add(ParamSpec.builder(String.class).setTable("types").setColumn("name").build());
+        paramList.add(ParamSpec.builder(String.class).setTable("owners").setColumn("city").build());
+        List<Object> results = parameterFinder.findValidParameters(paramList, 1);
+        assertTrue(results.isEmpty());
     }
 
     private void createAndLoadDatabase() throws SQLException, IOException {
@@ -66,42 +70,42 @@ public class InParameterFinderTest {
         final List<String> dataStmts = new ArrayList<>();
         try (InputStream stream = getClass().getResourceAsStream("/db/hsqldb/schema.sql");
              BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+            final List<String> lines = reader.lines()
+                    .map(line -> line.trim())
+                    .filter(line -> !isNullOrEmpty(line))
+                    .collect(Collectors.toList());
             String sql = null;
-            String line = reader.readLine();
-            while (line != null) {
-                if (line.length() > 0) {
-                    if (sql == null) {
-                        sql = line;
-                    }
-                    else {
-                        sql += "\n" + line;
-                    }
-                    if (line.endsWith(";")) {
-                        schemaStmts.add(sql);
-                        sql = null;
-                    }
+            for (String line : lines) {
+                if (sql == null) {
+                    sql = line;
                 }
-                line = reader.readLine();
+                else {
+                    sql += "\n" + line;
+                }
+                if (line.endsWith(";")) {
+                    schemaStmts.add(sql);
+                    sql = null;
+                }
             }
         }
         try (InputStream stream = getClass().getResourceAsStream("/db/hsqldb/data.sql");
              BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+            final List<String> lines = reader.lines()
+                    .map(line -> line.trim())
+                    .filter(line -> !isNullOrEmpty(line))
+                    .collect(Collectors.toList());
             String sql = null;
-            String line = reader.readLine();
-            while (line != null) {
-                if (line.length() > 0) {
-                    if (sql == null) {
-                        sql = line;
-                    }
-                    else {
-                        sql += "\n" + line;
-                    }
-                    if (line.endsWith(";")) {
-                        dataStmts.add(sql);
-                        sql = null;
-                    }
+            for (String line : lines) {
+                if (sql == null) {
+                    sql = line;
                 }
-                line = reader.readLine();
+                else {
+                    sql += "\n" + line;
+                }
+                if (line.endsWith(";")) {
+                    dataStmts.add(sql);
+                    sql = null;
+                }
             }
         }
         try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
