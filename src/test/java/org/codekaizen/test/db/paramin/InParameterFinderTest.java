@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -31,9 +31,10 @@ import java.io.InputStreamReader;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Strings.isNullOrEmpty;
+import static org.codekaizen.test.db.paramin.Preconditions.isNullOrEmpty;
 import static org.junit.Assert.*;
 
 /**
@@ -59,7 +60,6 @@ public class InParameterFinderTest {
         dataSource = candidate;
         createAndLoadDatabase();
         parameterFinder = new InParameterFinder(dataSource);
-        parameterFinder.setCatalog("TEST");
         parameterFinder.setSchema("PUBLIC");
     }
 
@@ -74,7 +74,7 @@ public class InParameterFinderTest {
         List<ParamSpec> paramList = new ArrayList<>();
         paramList.add(ParamSpec.builder(String.class).setTable("types").setColumn("name").build());
         paramList.add(ParamSpec.builder(String.class).setTable("owners").setColumn("city").build());
-        List<Object> results = parameterFinder.findValidParameters(paramList, null, 1);
+        List<Map<Integer, Object>> results = parameterFinder.findValidParameters(paramList, 1);
         assertTrue(results.isEmpty());
     }
 

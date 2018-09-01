@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,13 +19,13 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.Timestamp;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Strings.emptyToNull;
-import static com.google.common.base.Strings.isNullOrEmpty;
+import static org.codekaizen.test.db.paramin.Preconditions.*;
+
 
 /**
  * Holds the requirements for one specific input parameter.
@@ -56,10 +56,10 @@ public class ParamSpec<T extends Comparable<? super T>> {
         private String schema;
         private String table;
         private String column;
-        private String where;
+        private Map<String, Object> where = new HashMap<>();
         private JDBCType sqlType;
         private final Class<T> javaType;
-        private Acceptor<T> acceptor = Acceptors.getAllAcceptor();
+        private Matcher<T> matcher = Matchers.newAllAcceptor();
 
         private Builder(Class<T> javaType) {
             checkNotNull(javaType, "javaType is required parameter");
@@ -107,14 +107,14 @@ public class ParamSpec<T extends Comparable<? super T>> {
             return this;
         }
 
-        public Builder setWhere(String where) {
-            this.where = emptyToNull(where);
+        public Builder addWhere(String column, String value) {
+            this.where.put(column, value);
             return this;
         }
 
-        public Builder setAcceptor(Acceptor<T> acceptor) {
-            checkNotNull(acceptor, "acceptor cannot be null");
-            this.acceptor = acceptor;
+        public Builder setMatcher(Matcher<T> matcher) {
+            checkNotNull(matcher, "matcher cannot be null");
+            this.matcher = matcher;
             return this;
         }
 
@@ -126,7 +126,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
          * @throws IllegalArgumentException if any required values have not been specified
          */
         public ParamSpec<T> build() {
-            return new ParamSpec<>(catalog, schema, table, column, where, sqlType, javaType, acceptor);
+            return new ParamSpec<>(catalog, schema, table, column, where, sqlType, javaType, matcher);
         }
 
     }
@@ -135,13 +135,13 @@ public class ParamSpec<T extends Comparable<? super T>> {
     private final String schema;
     private final String table;
     private final String column;
-    private final String where;
+    private final Map<String, Object> where;
     private final JDBCType sqlType;
     private final Class<T> javaType;
-    private final Acceptor<T> acceptor;
+    private final Matcher<T> matcher;
 
-    private ParamSpec(String catalog, String schema, String table, String column, String where,
-                      JDBCType sqlType, Class<T> javaType, Acceptor<T> acceptor) {
+    private ParamSpec(String catalog, String schema, String table, String column, Map<String, Object> where,
+                      JDBCType sqlType, Class<T> javaType, Matcher<T> matcher) {
         checkArgument(!isNullOrEmpty(table), "table is required");
         checkArgument(!isNullOrEmpty(column), "column is required");
         this.catalog = catalog;
@@ -151,7 +151,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
         this.where = where;
         this.sqlType = sqlType;
         this.javaType = javaType;
-        this.acceptor = acceptor;
+        this.matcher = matcher;
     }
 
     public Optional<String> getCatalog() {
@@ -170,8 +170,8 @@ public class ParamSpec<T extends Comparable<? super T>> {
         return column;
     }
 
-    public Optional<String> getWhere() {
-        return Optional.ofNullable(where);
+    public Map<String, Object> getWhere() {
+        return where;
     }
 
     public JDBCType getSqlType() {
@@ -184,7 +184,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
 
     public boolean isAcceptableValue(T value) {
         checkNotNull(value, "value is required parameter");
-        return acceptor.isAcceptableValue(value);
+        return matcher.isAcceptableValue(value);
     }
 
     @Override

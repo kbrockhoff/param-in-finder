@@ -1,0 +1,205 @@
+/*
+ * Copyright 2018 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy singleOf the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.codekaizen.test.db.paramin;
+
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.*;
+
+import static org.codekaizen.test.db.paramin.Preconditions.checkArgument;
+import static org.codekaizen.test.db.paramin.Preconditions.checkNotEmpty;
+import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
+
+/**
+ * Provides an immutable, finite, ordered list with associated names. Used by this library to store
+ * results matching parameter specifications.
+ *
+ * @author kbrockhoff
+ */
+public class Tuple {
+
+    /**
+     * The 0-tuple.
+     */
+    public static final Tuple EMPTY_TUPLE = new Tuple(Collections.emptyList(), Collections.emptyList());
+
+    /**
+     * Constructs a new single tuple object containing the supplied values.
+     *
+     * @param name the name
+     * @param value the value which may be null
+     * @return the tuple
+     */
+    public static Tuple singleOf(String name, Object value) {
+        checkNotEmpty(name);
+        List<String> names = new ArrayList<>();
+        List<Object> values = new ArrayList<>();
+        names.add(name);
+        values.add(value);
+        return new Tuple(names, values);
+    }
+
+    private final List<String> names;
+    private final List<Object> values;
+
+    /**
+     * Constructs a tuple with the supplied names and values.
+     *
+     * @param names the list singleOf names to associate with the values
+     * @param values the values
+     */
+    public Tuple(List<String> names, List<Object> values) {
+        checkNotNull(names);
+        checkNotNull(values);
+        checkArgument(values.size() == names.size(), "Field names must be same length as values");
+        this.names = new ArrayList<>(names);
+        this.values = new ArrayList<>(values); // shallow copy
+    }
+
+    /**
+     * Returns a new tuple with the supplied element added to the end singleOf this tuple.
+     *
+     * @param name the name
+     * @param value the value which may be null
+     * @return the tuple
+     */
+    public Tuple addElement(String name, Object value) {
+        checkNotEmpty(name);
+        List<String> names = new ArrayList<>(this.names);
+        List<Object> values = new ArrayList<>(this.values);
+        names.add(name);
+        values.add(value);
+        return new Tuple(names, values);
+    }
+
+    /**
+     * Populates a prepared statement's parameters with the values from this tuple.
+     *
+     * @param statement the prepared statement
+     * @throws SQLException if parameterIndex does not correspond to a parameter marker in the SQL statement
+     */
+    public void populateStatementParameters(PreparedStatement statement) throws SQLException {
+        checkNotNull(statement);
+        for (int i = 0; i < values.size(); i++) {
+            statement.setObject(i + 1, values.get(i));
+        }
+    }
+
+    /**
+     * Populates a callable statement's parameters with the values from this tuple.
+     *
+     * @param statement the callable statement
+     * @throws SQLException if parameterIndex does not correspond to a parameter marker in the SQL statement
+     */
+    public void populateStatementParameters(CallableStatement statement) throws SQLException {
+        checkNotNull(statement);
+        for (int i = 0; i < values.size(); i++) {
+            statement.setObject(i + 1, values.get(i));
+        }
+    }
+
+    /**
+     * Returns the number singleOf tuple elements.
+     *
+     * @return the size
+     */
+    public int size() {
+        return values.size();
+    }
+
+    public List<String> getFieldNames() {
+        return Collections.unmodifiableList(names);
+    }
+
+    public List<Object> getValues() {
+        return Collections.unmodifiableList(values);
+    }
+
+    public boolean hasFieldName(String name) {
+        return names.contains(name);
+    }
+
+    public Object getValue(String name) {
+        int index = indexOf(name);
+        checkArgument(index >= 0, "Field name [" + name + "] does not exist");
+        return getValue(index);
+    }
+
+    public Object getValue(int index) {
+        return values.get(index);
+    }
+
+    @SuppressWarnings("rawtypes")
+    public List<Class> getFieldTypes() {
+        ArrayList<Class> types = new ArrayList<>(values.size());
+        for (Object val : values) {
+            types.add(val.getClass());
+        }
+        return Collections.unmodifiableList(types);
+    }
+
+    /**
+     * Returns the tuple values with associated names as a map with the names as the keys.
+     *
+     * @return the map
+     */
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new LinkedHashMap<>(values.size());
+        for (int i = 0; i < values.size(); i++) {
+            map.put(names.get(i), values.get(i));
+        }
+        return map;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(names, values);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        boolean result;
+        if (this == obj) {
+            result = true;
+        }
+        else if (obj instanceof Tuple) {
+            Tuple other = (Tuple) obj;
+            result = Objects.equals(names, other.names) && Objects.equals(values, other.values);
+        }
+        else {
+            result = false;
+        }
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append('(');
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) builder.append(',');
+            builder.append(names.get(i)).append(": ").append(values.get(i));
+        }
+        builder.append(')');
+        return builder.toString();
+    }
+
+    private int indexOf(String name) {
+        return names.indexOf(name);
+    }
+
+}

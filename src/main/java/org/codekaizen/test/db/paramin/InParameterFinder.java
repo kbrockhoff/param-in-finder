@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -15,25 +15,15 @@
  */
 package org.codekaizen.test.db.paramin;
 
-import com.google.common.graph.ElementOrder;
-import com.google.common.graph.MutableValueGraph;
-import com.google.common.graph.ValueGraph;
-import com.google.common.graph.ValueGraphBuilder;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Strings.emptyToNull;
-import static com.google.common.base.Strings.isNullOrEmpty;
+import static org.codekaizen.test.db.paramin.Preconditions.*;
 
 /**
  * Queries the RDBMS to find stored procedure in parameters which will result in
@@ -45,9 +35,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 public class InParameterFinder {
 
     private final DataSource dataSource;
-    private String catalog;
     private String schema;
-    private final MutableValueGraph<String, String> reflectedGraph;
 
     /**
      * Constructs a finder instance.
@@ -58,28 +46,6 @@ public class InParameterFinder {
     public InParameterFinder(DataSource dataSource) {
         checkNotNull(dataSource, "dataSource is required parameter");
         this.dataSource = dataSource;
-        reflectedGraph = ValueGraphBuilder.directed()
-                .allowsSelfLoops(true)
-                .nodeOrder((ElementOrder<String>) ElementOrder.natural())
-                .build();
-    }
-
-    /**
-     * Returns the default database catalog name.
-     *
-     * @return the catalog name or <code>null</code>
-     */
-    public String getCatalog() {
-        return catalog;
-    }
-
-    /**
-     * Sets the default database catalog name.
-     *
-     * @param catalog the catalog name or <code>null</code>
-     */
-    public void setCatalog(String catalog) {
-        this.catalog = emptyToNull(catalog);
     }
 
     /**
@@ -100,16 +66,25 @@ public class InParameterFinder {
         this.schema = emptyToNull(schema);
     }
 
+    /**
+     * Returns a fully-qualified table name.
+     *
+     * @param spec the in parameter specification
+     * @return the standardized name
+     */
     public String constructTableName(ParamSpec spec) {
-        return constructTableName((String) spec.getCatalog().orElse(getCatalog()),
-                (String) spec.getSchema().orElse(getSchema()), spec.getTable());
+        return constructTableName((String) spec.getSchema().orElse(getSchema()), spec.getTable());
     }
 
-    public String constructTableName(String catalog, String schema, String table) {
+    /**
+     * Returns a fully-qualified table name.
+     *
+     * @param schema the schema name or <code>null</code> if not applicable
+     * @param table the table name
+     * @return the standardized name
+     */
+    public String constructTableName(String schema, String table) {
         StringBuilder builder = new StringBuilder();
-        if (!isNullOrEmpty(catalog)) {
-            builder.append(catalog).append('.');
-        }
         if (!isNullOrEmpty(schema)) {
             builder.append(schema).append('.');
         }
@@ -117,66 +92,65 @@ public class InParameterFinder {
         return builder.toString().toUpperCase();
     }
 
-    public List<Object> findValidParameters(List<ParamSpec> paramList, ValueGraph<String, String> graph, int minResultSetSize)
+    public String constructSqlQuery(ParamSpec spec) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("SELECT DISTINCT ").append(spec.getColumn()).append(" FROM ").append(constructTableName(spec));
+        //spec.getWhere().ifPresent(clause -> builder.append(" WHERE ").append(clause));
+        return builder.toString();
+    }
+
+    public List<Map<Integer, Object>> findValidParameters(List<ParamSpec> paramList, int minResultSetSize)
             throws SQLException {
         checkArgument(paramList != null && !paramList.isEmpty(), "paramList cannot be empty");
-        List<Object> results = new ArrayList<>(paramList.size());
+        List<Map<Integer, Object>> results = new ArrayList<>();
         List<String> selectDistincts = new ArrayList<>();
-        if (graph == null) {
-            for (ParamSpec spec : paramList) {
-                retrieveTableRelationshipsIfNotAlreadyInGraph(spec);
-            }
-        }
-        String fullSql = constructFullSql(paramList, graph == null ? reflectedGraph : graph);
+        int index = 0;
+        ParamSpec spec = paramList.get(index);
+        retrieveValidValues(spec);
         return results;
     }
 
-    private String constructFullSql(List<ParamSpec> paramList, ValueGraph<String, String> graph) {
-        StringBuilder fullSql = new StringBuilder();
-        return fullSql.toString();
+    private List<Object> retrieveValidValues(ParamSpec spec) throws SQLException {
+        List<Object> values = new ArrayList<>();
+        String sql = constructSqlQuery(spec);
+        try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery(sql)) {
+                while (rs.next()) {
+                    String value = rs.getString(1);
+                    if (spec.isAcceptableValue(value)) {
+                        values.add(value);
+                    }
+                }
+            }
+        }
+        return values;
     }
 
     private void retrieveTableRelationshipsIfNotAlreadyInGraph(ParamSpec spec)
             throws SQLException {
         String node = constructTableName(spec);
-        if (!reflectedGraph.nodes().contains(node)) {
-            retrieveTableGraph((String) spec.getCatalog().orElse(getCatalog()),
-                    (String) spec.getSchema().orElse(getSchema()), spec.getTable());
-        }
     }
 
-    private void retrieveTableGraph(String catalog, String schema, String table)
+    private void retrieveTableGraph(String schema, String table)
             throws SQLException {
-        String tblName = constructTableName(catalog, schema, table);
-        if (!reflectedGraph.nodes().contains(tblName)) {
-            reflectedGraph.addNode(tblName);
-        }
+        String tblName = constructTableName(schema, table);
         try (Connection conn = getConnection()) {
+            String catalog = null;
             DatabaseMetaData dm = conn.getMetaData();
             try (ResultSet rs = dm.getImportedKeys(catalog, schema, table)) {
                 while (rs.next()) {
-                    String fkTblName = constructTableName(rs.getString("FKTABLE_CAT"),
-                            rs.getString("FKTABLE_SCHEM"), rs.getString("FKTABLE_NAME"));
-                    if (!reflectedGraph.nodes().contains(fkTblName)) {
-                        reflectedGraph.addNode(fkTblName);
-                    }
+                    String fkTblName = constructTableName(rs.getString("FKTABLE_SCHEM"), rs.getString("FKTABLE_NAME"));
                     StringBuilder builder = new StringBuilder();
                     builder.append(tblName).append(".").append(rs.getString("PKCOLUMN_NAME"))
                             .append("=").append(fkTblName).append(rs.getString("FKCOLUMN_NAME"));
-                    reflectedGraph.putEdgeValue(table, fkTblName, builder.toString());
                 }
             }
             try (ResultSet rs = dm.getExportedKeys(catalog, schema, table)) {
                 while (rs.next()) {
-                    String pkTblName = constructTableName(rs.getString("PKTABLE_CAT"),
-                            rs.getString("PKTABLE_SCHEM"), rs.getString("PKTABLE_NAME"));
-                    if (!reflectedGraph.nodes().contains(pkTblName)) {
-                        reflectedGraph.addNode(pkTblName);
-                    }
+                    String pkTblName = constructTableName(rs.getString("PKTABLE_SCHEM"), rs.getString("PKTABLE_NAME"));
                     StringBuilder builder = new StringBuilder();
                     builder.append(pkTblName).append(".").append(rs.getString("PKCOLUMN_NAME"))
                             .append("=").append(tblName).append(rs.getString("FKCOLUMN_NAME"));
-                    reflectedGraph.putEdgeValue(table, pkTblName, builder.toString());
                 }
             }
         }
@@ -184,6 +158,9 @@ public class InParameterFinder {
 
     private Connection getConnection() throws SQLException {
         return dataSource.getConnection();
+    }
+
+    private void findValues(Specs specs) {
     }
 
 }

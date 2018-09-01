@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -41,7 +41,7 @@ public class ParamSpecTest {
         List<String> acceptable = Arrays.asList("administrator", "poweruser");
         ParamSpec<String> requirement = ParamSpec.builder(String.class)
                 .setSchema("public").setTable("users").setColumn("usertype")
-                .setAcceptor(Acceptors.getValidListAcceptor(acceptable)).build();
+                .setMatcher(Matchers.newValidListAcceptor(acceptable)).build();
         acceptable.forEach(val -> assertTrue(requirement.isAcceptableValue(val)));
         assertFalse(requirement.isAcceptableValue("guest"));
     }
@@ -53,7 +53,7 @@ public class ParamSpecTest {
         Timestamp max = new Timestamp(when.plus(Duration.ofDays(7L)).toEpochMilli());
         ParamSpec<Timestamp> requirement = ParamSpec.builder(Timestamp.class)
                 .setTable("users").setColumn("active_ts")
-                .setAcceptor(Acceptors.getMinMaxAcceptor(min, max)).build();
+                .setMatcher(Matchers.newMinMaxAcceptor(min, max)).build();
         assertTrue(requirement.isAcceptableValue(min));
         assertFalse(requirement.isAcceptableValue(max));
         assertTrue(requirement.isAcceptableValue(new Timestamp(when.plus(Duration.ofDays(2)).toEpochMilli())));
@@ -78,8 +78,8 @@ public class ParamSpecTest {
     @Test
     public void shouldConstructRequirementWithRegexAcceptor() {
         ParamSpec<String> requirement = ParamSpec.builder(String.class)
-                .setSchema("public").setTable("users").setWhere("usertype=\'poweruser\'").setColumn("username")
-                .setAcceptor(Acceptors.getRegexStringAcceptor(Pattern.compile("^[ABCabc].+"))).build();
+                .setSchema("public").setTable("users").addWhere("usertype", "poweruser").setColumn("username")
+                .setMatcher(Matchers.newRegexStringAcceptor(Pattern.compile("^[ABCabc].+"))).build();
         assertTrue(requirement.isAcceptableValue("antman"));
         assertFalse(requirement.isAcceptableValue("scarletwidow"));
     }
@@ -87,7 +87,7 @@ public class ParamSpecTest {
     @Test
     public void shouldUtilizeCustomAcceptorIfProvided() {
         ParamSpec<Integer> requirement = ParamSpec.builder(Integer.class)
-                .setTable("users").setColumn("ranking").setAcceptor(v -> v.compareTo(8) < 0).build();
+                .setTable("users").setColumn("ranking").setMatcher(v -> v.compareTo(8) < 0).build();
         assertTrue(requirement.isAcceptableValue(4));
         assertFalse(requirement.isAcceptableValue(16));
     }

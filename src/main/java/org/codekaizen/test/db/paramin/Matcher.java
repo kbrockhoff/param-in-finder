@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.codekaizen.test.db.paramin;
  * @author kbrockhoff
  */
 @FunctionalInterface
-public interface Acceptor<T extends Comparable<? super T>> {
+public interface Matcher<T extends Comparable<? super T>> {
 
     /**
      * Returns whether the provided value is acceptable for the current use case or not.
