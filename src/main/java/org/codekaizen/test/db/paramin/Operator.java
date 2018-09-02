@@ -16,19 +16,38 @@
 package org.codekaizen.test.db.paramin;
 
 /**
- * Defines a strategy interface for performing additional validation on whether a particular value is acceptable or not.
+ * Ennumerates the supported where clause operators.
  *
  * @author kbrockhoff
  */
-@FunctionalInterface
-public interface Matcher<T extends Comparable<? super T>> {
+public enum Operator {
+
+    EQUALS("="),
+    NOT_EQUALS("!="),
+    GREATER_THAN(">"),
+    LESS_THAN("<"),
+    GREATER_THAN_EQUALS(">="),
+    LESS_THAN_EQUALS("<="),
+    LIKE(" LIKE "),
+    IS(" IS "),
+    IS_NOT(" IS NOT "),
+    IN(" IN "),
+    NOT_IN(" NOT IN "),
+    ;
+
+    private final String sqlString;
+
+    private Operator(String sqlString) {
+        this.sqlString = sqlString;
+    }
 
     /**
-     * Returns whether the provided value is acceptable for the current use case or not.
+     * Returns the string to use when generating SQL statements.
      *
-     * @param value the value to check
-     * @return acceptable or not
+     * @return the SQL representation
      */
-    boolean isAcceptableValue(T value);
+    public String getSqlString() {
+        return sqlString;
+    }
 
 }

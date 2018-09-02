@@ -2,12 +2,12 @@
  * Copyright 2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * you may not use this file except inColumn compliance with the License.
  * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to inColumn writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -22,11 +22,12 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.codekaizen.test.db.paramin.Preconditions.*;
 
 /**
- * Queries the RDBMS to find stored procedure in parameters which will result in
+ * Queries the RDBMS to find stored procedure inColumn parameters which will result inColumn
  * cursor results matching the specified criteria.
  *
  * @author kbrockhoff
@@ -69,7 +70,7 @@ public class InParameterFinder {
     /**
      * Returns a fully-qualified table name.
      *
-     * @param spec the in parameter specification
+     * @param spec the inColumn parameter specification
      * @return the standardized name
      */
     public String constructTableName(ParamSpec spec) {
@@ -80,7 +81,7 @@ public class InParameterFinder {
      * Returns a fully-qualified table name.
      *
      * @param schema the schema name or <code>null</code> if not applicable
-     * @param table the table name
+     * @param table  the table name
      * @return the standardized name
      */
     public String constructTableName(String schema, String table) {
@@ -95,8 +96,46 @@ public class InParameterFinder {
     public String constructSqlQuery(ParamSpec spec) {
         StringBuilder builder = new StringBuilder();
         builder.append("SELECT DISTINCT ").append(spec.getColumn()).append(" FROM ").append(constructTableName(spec));
-        //spec.getWhere().ifPresent(clause -> builder.append(" WHERE ").append(clause));
+        if (!spec.getWhere().isEmpty()) {
+            builder.append(" WHERE ");
+            int count = 0;
+            for (Object condition : spec.getWhere()) {
+                if (count > 0) {
+                    builder.append(" AND ");
+                }
+                builder.append(condition);
+                count++;
+            }
+
+        }
         return builder.toString();
+    }
+
+    public List<Tuple> findValidParameters(Specs specs, int size) {
+        try (Connection conn = getConnection()) {
+            specs.getSpecs().stream()
+                    .map(spec -> specs.getSqlStatement(spec));
+
+        } catch (SQLException cause) {
+            throw new IllegalStateException(cause);
+        }
+        return null;
+    }
+
+    private Stream<Tuple> retrieveValues(Connection conn, Specs specs, Tuple previous) {
+        ParamSpec spec = specs.getSpec(previous.size());
+        try (PreparedStatement ps = conn.prepareStatement(specs.getSqlStatement(spec))) {
+            previous.populateStatementParameters(ps);
+            try (ResultSet rs = ps.executeQuery()) {
+                Object value = rs.getObject(1);
+                if (spec.isAcceptableValue((Comparable<?>) value)) {
+
+                }
+            }
+        } catch (SQLException cause) {
+            throw new IllegalStateException(cause);
+        }
+        return null;
     }
 
     public List<Map<Integer, Object>> findValidParameters(List<ParamSpec> paramList, int minResultSetSize)

@@ -2,12 +2,12 @@
  * Copyright 2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * you may not use this file except inColumn compliance with the License.
  * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to inColumn writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -39,9 +39,9 @@ public class ParamSpecTest {
     @Test
     public void shouldConstructRequirementWithAcceptableValuesList() {
         List<String> acceptable = Arrays.asList("administrator", "poweruser");
-        ParamSpec<String> requirement = ParamSpec.builder(String.class)
-                .setSchema("public").setTable("users").setColumn("usertype")
-                .setMatcher(Matchers.newValidListAcceptor(acceptable)).build();
+        ParamSpec<String> requirement = ParamSpec.find(String.class)
+                .fromTable("public", "users").inColumn("usertype")
+                .matching(Matchers.newValidListAcceptor(acceptable)).build();
         acceptable.forEach(val -> assertTrue(requirement.isAcceptableValue(val)));
         assertFalse(requirement.isAcceptableValue("guest"));
     }
@@ -51,9 +51,9 @@ public class ParamSpecTest {
         Instant when = Instant.parse("2018-08-12T00:00:00Z");
         Timestamp min = new Timestamp(when.toEpochMilli());
         Timestamp max = new Timestamp(when.plus(Duration.ofDays(7L)).toEpochMilli());
-        ParamSpec<Timestamp> requirement = ParamSpec.builder(Timestamp.class)
-                .setTable("users").setColumn("active_ts")
-                .setMatcher(Matchers.newMinMaxAcceptor(min, max)).build();
+        ParamSpec<Timestamp> requirement = ParamSpec.find(Timestamp.class)
+                .fromTable("users").inColumn("active_ts")
+                .matching(Matchers.newMinMaxAcceptor(min, max)).build();
         assertTrue(requirement.isAcceptableValue(min));
         assertFalse(requirement.isAcceptableValue(max));
         assertTrue(requirement.isAcceptableValue(new Timestamp(when.plus(Duration.ofDays(2)).toEpochMilli())));
@@ -62,32 +62,33 @@ public class ParamSpecTest {
 
     @Test
     public void shouldConstructRequirementWithNoRestrictions() {
-        ParamSpec<BigDecimal> requirement = ParamSpec.builder(BigDecimal.class)
-                .setTable("users").setColumn("employee_id").build();
+        ParamSpec<BigDecimal> requirement = ParamSpec.find(BigDecimal.class)
+                .fromTable("users").inColumn("employee_id").build();
         assertTrue(requirement.isAcceptableValue(new BigDecimal("234879892")));
         assertTrue(requirement.isAcceptableValue(new BigDecimal("18.44")));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void shouldThrowExceptionOnUnsupportedType() {
-        ParamSpec<DayOfWeek> requirement = ParamSpec.builder(DayOfWeek.class)
-                .setTable("users").setColumn("best_day").build();
+        ParamSpec<DayOfWeek> requirement = ParamSpec.find(DayOfWeek.class)
+                .inColumn("best_day").fromTable("users").build();
         assertTrue(requirement.isAcceptableValue(DayOfWeek.FRIDAY));
     }
 
     @Test
     public void shouldConstructRequirementWithRegexAcceptor() {
-        ParamSpec<String> requirement = ParamSpec.builder(String.class)
-                .setSchema("public").setTable("users").addWhere("usertype", "poweruser").setColumn("username")
-                .setMatcher(Matchers.newRegexStringAcceptor(Pattern.compile("^[ABCabc].+"))).build();
+        ParamSpec<String> requirement = ParamSpec.find(String.class)
+                .inColumn("username").fromTable("public", "users")
+                .where(new Condition("usertype", Operator.EQUALS, "poweruser"))
+                .matching(Matchers.newRegexStringAcceptor(Pattern.compile("^[ABCabc].+"))).build();
         assertTrue(requirement.isAcceptableValue("antman"));
         assertFalse(requirement.isAcceptableValue("scarletwidow"));
     }
 
     @Test
     public void shouldUtilizeCustomAcceptorIfProvided() {
-        ParamSpec<Integer> requirement = ParamSpec.builder(Integer.class)
-                .setTable("users").setColumn("ranking").setMatcher(v -> v.compareTo(8) < 0).build();
+        ParamSpec<Integer> requirement = ParamSpec.find(Integer.class)
+                .inColumn("ranking").fromTable("users").matching(v -> v.compareTo(8) < 0).build();
         assertTrue(requirement.isAcceptableValue(4));
         assertFalse(requirement.isAcceptableValue(16));
     }

@@ -2,12 +2,12 @@
  * Copyright 2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * you may not use this file except inColumn compliance with the License.
  * You may obtain a copy singleOf the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to inColumn writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -19,10 +19,7 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.Timestamp;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 import static org.codekaizen.test.db.paramin.Preconditions.*;
 
@@ -35,13 +32,13 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
 public class ParamSpec<T extends Comparable<? super T>> {
 
     /**
-     * Instantiates a requirement builder for the specified Java type.
+     * Instantiates a requirement find for the specified Java type.
      *
      * @param javaType the parameter class
      * @param <T> the parameter type
-     * @return the builder
+     * @return the find
      */
-    public static <T extends Comparable<? super T>> Builder<T> builder(Class<T> javaType) {
+    public static <T extends Comparable<? super T>> Builder<T> find(Class<T> javaType) {
         return new Builder<>(javaType);
     }
 
@@ -56,7 +53,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
         private String schema;
         private String table;
         private String column;
-        private Map<String, Object> where = new HashMap<>();
+        private List<Condition> where = new ArrayList<>();
         private JDBCType sqlType;
         private final Class<T> javaType;
         private Matcher<T> matcher = Matchers.newAllAcceptor();
@@ -85,41 +82,42 @@ public class ParamSpec<T extends Comparable<? super T>> {
             }
         }
 
-        public Builder setCatalog(String catalog) {
-            this.catalog = emptyToNull(catalog);
-            return this;
-        }
-
-        public Builder setSchema(String schema) {
-            this.schema = emptyToNull(schema);
-            return this;
-        }
-
-        public Builder setTable(String table) {
-            checkArgument(!isNullOrEmpty(table), "table is required");
-            this.table = table;
-            return this;
-        }
-
-        public Builder setColumn(String column) {
-            checkArgument(!isNullOrEmpty(column), "column is required");
+        public Builder inColumn(String column) {
+            checkNotEmpty(column, "column is required");
             this.column = column;
             return this;
         }
 
-        public Builder addWhere(String column, String value) {
-            this.where.put(column, value);
+        public Builder fromTable(String table) {
+            return fromTable(null, null, table);
+        }
+
+        public Builder fromTable(String schema, String table) {
+            return fromTable(null, schema, table);
+        }
+
+        public Builder fromTable(String catalog, String schema, String table) {
+            checkNotEmpty(table, "table is required");
+            this.catalog = emptyToNull(catalog);
+            this.schema = emptyToNull(schema);
+            this.table = table;
             return this;
         }
 
-        public Builder setMatcher(Matcher<T> matcher) {
+        public Builder where(Condition condition) {
+            checkNotNull(condition, "condition cannot be null");
+            this.where.add(condition);
+            return this;
+        }
+
+        public Builder matching(Matcher<T> matcher) {
             checkNotNull(matcher, "matcher cannot be null");
             this.matcher = matcher;
             return this;
         }
 
         /**
-         * Constructs the requirement from the values provided to the builder or the default if a value
+         * Constructs the requirement fromTable the values provided to the find or the default if a value
          * is not provided.
          *
          * @return the immutable requirement object
@@ -135,12 +133,12 @@ public class ParamSpec<T extends Comparable<? super T>> {
     private final String schema;
     private final String table;
     private final String column;
-    private final Map<String, Object> where;
+    private final List<Condition> where;
     private final JDBCType sqlType;
     private final Class<T> javaType;
     private final Matcher<T> matcher;
 
-    private ParamSpec(String catalog, String schema, String table, String column, Map<String, Object> where,
+    private ParamSpec(String catalog, String schema, String table, String column, List<Condition> where,
                       JDBCType sqlType, Class<T> javaType, Matcher<T> matcher) {
         checkArgument(!isNullOrEmpty(table), "table is required");
         checkArgument(!isNullOrEmpty(column), "column is required");
@@ -170,7 +168,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
         return column;
     }
 
-    public Map<String, Object> getWhere() {
+    public List<Condition> getWhere() {
         return where;
     }
 

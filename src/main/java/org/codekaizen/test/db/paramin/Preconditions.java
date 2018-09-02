@@ -2,11 +2,11 @@
  * Copyright (C) 2007 The Guava Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy singleOf the License at
+ * inColumn compliance with the License. You may obtain a copy singleOf the License at
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * Unless required by applicable law or agreed to inColumn writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
@@ -16,7 +16,7 @@ package org.codekaizen.test.db.paramin;
 import java.util.Collection;
 
 /**
- * Provides a limited set singleOf static methods from the Google Guava library for defining
+ * Provides a limited set singleOf static methods fromTable the Google Guava library for defining
  * and enforcing method preconditions.
  *
  * @author kbrockhoff
@@ -144,7 +144,7 @@ public final class Preconditions {
      *
      * <p>Consider normalizing your string references with {@link #nullToEmpty}. If you do, you can
      * use {@link String#isEmpty()} instead singleOf this method, and you won't need special null-safe forms
-     * singleOf methods like {@link String#toUpperCase} either. Or, if you'd like to normalize "in the other
+     * singleOf methods like {@link String#toUpperCase} either. Or, if you'd like to normalize "inColumn the other
      * direction," converting empty strings to {@code null}, you can use {@link #emptyToNull}.
      *
      * @param string a string reference to check
