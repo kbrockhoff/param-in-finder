@@ -146,7 +146,10 @@ public class ParamSpecs {
             alias++;
         }
         StringBuilder builder = new StringBuilder();
-        builder.append("SELECT ").append(columns).append(" ").append(tables).append(" WHERE ").append(where);
+        builder.append("SELECT ").append(columns).append(" FROM ").append(tables);
+        if (where.length() > 0) {
+            builder.append(" WHERE ").append(where);
+        }
         String sql = builder.toString();
         logger.debug("constructed: {}", sql);
         return sql;

@@ -32,6 +32,8 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static org.codekaizen.test.db.paramin.Preconditions.isBlank;
@@ -63,18 +65,26 @@ public class InParameterFinderTest {
     }
 
     public void tearDown() {
+        if (parameterFinder != null) {
+            parameterFinder.close();
+        }
         if (server != null) {
             server.stop();
         }
     }
 
     @Test
-    public void findValidParameters() throws SQLException {
-        List<ParamSpec> paramList = new ArrayList<>();
-        paramList.add(ParamSpec.find(String.class).fromTable("types").inColumn("name").build());
-        paramList.add(ParamSpec.find(String.class).fromTable("owners").inColumn("city").build());
-        List<Map<Integer, Object>> results = parameterFinder.findValidParameters(paramList, 1);
-        assertTrue(results.isEmpty());
+    public void findValidParameters() throws SQLException, ExecutionException, InterruptedException {
+        ParamSpecs paramSpecs = ParamSpecs
+                .create(ParamSpec.find(String.class).fromTable("types").inColumn("name").build())
+                .join(ParamSpec.find(String.class).fromTable("pets").inColumn("id").build(),
+                        new JoinPair("id", "type_id"))
+                .join(ParamSpec.find(String.class).fromTable("owners").inColumn("city").build(),
+                        new JoinPair("owner_id", "id"));
+        parameterFinder.setParamSpecs(paramSpecs);
+        Future<List<Tuple>> future = parameterFinder.findValidParameters(2);
+        List<Tuple> results = future.get();
+        assertEquals(0, results.size());
     }
 
     private void createAndLoadDatabase() throws SQLException, IOException {

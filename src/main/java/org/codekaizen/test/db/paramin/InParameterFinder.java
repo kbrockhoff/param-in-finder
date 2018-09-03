@@ -15,13 +15,20 @@
  */
 package org.codekaizen.test.db.paramin;
 
+import com.linkedin.java.util.concurrent.Flow;
+
+import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.sql.DataSource;
+import java.io.Closeable;
+import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
 import static org.codekaizen.test.db.paramin.Preconditions.*;
@@ -33,10 +40,12 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
  * @author kbrockhoff
  */
 @Named("inParameterFinder")
-public class InParameterFinder {
+public class InParameterFinder implements Flow.Publisher<Tuple>, Closeable {
 
     private final DataSource dataSource;
-    private String schema;
+    private ParamSpecs paramSpecs;
+    private Connection connection;
+    private LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
 
     /**
      * Constructs a finder instance.
@@ -49,61 +58,69 @@ public class InParameterFinder {
         this.dataSource = dataSource;
     }
 
-    public List<Tuple> findValidParameters(ParamSpecs specs, int size) {
-        try (Connection conn = getConnection()) {
-            specs.getParamSpecs().forEach(spec -> System.out.println(spec));
-
-        } catch (SQLException cause) {
-            throw new IllegalStateException(cause);
-        }
-        return null;
+    public ParamSpecs getParamSpecs() {
+        return paramSpecs;
     }
 
-    private Stream<Tuple> retrieveValues(Connection conn, ParamSpecs specs, Tuple previous) {
-        ParamSpec spec = specs.getParamSpecs().get(previous.size());
-        try (PreparedStatement ps = conn.prepareStatement("")) {
-            previous.populateStatementParameters(ps);
-            try (ResultSet rs = ps.executeQuery()) {
-                Object value = rs.getObject(1);
-                if (spec.isAcceptableValue((Comparable<?>) value)) {
+    public void setParamSpecs(ParamSpecs paramSpecs) {
+        checkNotNull(paramSpecs);
+        this.paramSpecs = paramSpecs;
+        close();
+        processors = configureProcessingFlow();
+    }
 
+    public Future<List<Tuple>> findValidParameters(int size) {
+        TupleListRetriever future = new TupleListRetriever(size);
+        subscribe(future);
+        return future;
+    }
+
+    @Override
+    public void subscribe(Flow.Subscriber<? super Tuple> subscriber) {
+        checkArgument(paramSpecs != null, "paramSpecs must be set first");
+        processors.getLast().subscribe(subscriber);
+    }
+
+    @Override
+    @PreDestroy
+    public void close() {
+        processors.forEach(proc -> proc.close());
+        if (connection != null) {
+            try {
+                connection.close();
+            } catch (SQLException ingore) {
+
+            }
+        }
+    }
+
+    private LinkedList<SqlQueryProcessor> configureProcessingFlow() {
+        LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
+        try {
+            SqlQueryProcessor previous = null;
+            for (ParamSpec spec : getParamSpecs().getParamSpecs()) {
+                SqlQueryProcessor proc = new SqlQueryProcessor(spec,
+                        getConnection().prepareStatement(getParamSpecs().getSqlStatement(spec)));
+                processors.add(proc);
+                if (previous != null) {
+                    previous.subscribe(proc);
                 }
+                previous = proc;
             }
         } catch (SQLException cause) {
             throw new IllegalStateException(cause);
         }
-        return null;
-    }
-
-    public List<Map<Integer, Object>> findValidParameters(List<ParamSpec> paramList, int minResultSetSize)
-            throws SQLException {
-        checkArgument(paramList != null && !paramList.isEmpty(), "paramList cannot be empty");
-        List<Map<Integer, Object>> results = new ArrayList<>();
-        List<String> selectDistincts = new ArrayList<>();
-        int index = 0;
-        ParamSpec spec = paramList.get(index);
-        retrieveValidValues(spec);
-        return results;
-    }
-
-    private List<Object> retrieveValidValues(ParamSpec spec) throws SQLException {
-        List<Object> values = new ArrayList<>();
-        String sql = "SELECT name FROM types";
-        try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
-            try (ResultSet rs = stmt.executeQuery(sql)) {
-                while (rs.next()) {
-                    String value = rs.getString(1);
-                    if (spec.isAcceptableValue(value)) {
-                        values.add(value);
-                    }
-                }
-            }
+        finally {
+            close();
         }
-        return values;
+        return processors;
     }
 
     private Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
+        if (connection == null || connection.isClosed()) {
+            connection = dataSource.getConnection();
+        }
+        return connection;
     }
 
 }

@@ -49,6 +49,28 @@ public class ParamSpecsTest {
         for (String sql : statements) {
             logger.info(sql);
             assertTrue(sql.startsWith("SELECT "));
+            assertTrue(sql.contains(" FROM "));
+            assertTrue(sql.contains(" WHERE "));
+        }
+        assertEquals(1, statements.size());
+    }
+
+    @Test
+    public void shouldCreateSpecsWithSingleSpecWithNoWhereClause() {
+        ParamSpecs specs = ParamSpecs.create(
+                ParamSpec.find(String.class).inColumn("user_id").fromTable("users").build());
+        specs.setSchema("public");
+        List<ParamSpec<?>> results = specs.getParamSpecs();
+        logger.info("{}", results);
+        assertEquals(1, results.size());
+        List<String> statements = results.stream()
+                .map(spec -> specs.getSqlStatement(spec))
+                .collect(Collectors.toList());
+        for (String sql : statements) {
+            logger.info(sql);
+            assertTrue(sql.startsWith("SELECT "));
+            assertTrue(sql.contains(" FROM "));
+            assertFalse(sql.contains(" WHERE "));
         }
         assertEquals(1, statements.size());
     }
@@ -74,6 +96,7 @@ public class ParamSpecsTest {
         for (String sql : statements) {
             logger.info(sql);
             assertTrue(sql.startsWith("SELECT "));
+            assertTrue(sql.contains(" FROM "));
             if (index > 0) {
                 assertTrue(sql.contains(" INNER JOIN "));
                 assertTrue(sql.contains(" WHERE "));
