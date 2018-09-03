@@ -49,72 +49,9 @@ public class InParameterFinder {
         this.dataSource = dataSource;
     }
 
-    /**
-     * Returns the default database schema name.
-     *
-     * @return the schema name or <code>null</code>
-     */
-    public String getSchema() {
-        return schema;
-    }
-
-    /**
-     * Sets the default database schema name.
-     *
-     * @param schema the schema name or <code>null</code>
-     */
-    public void setSchema(String schema) {
-        this.schema = emptyToNull(schema);
-    }
-
-    /**
-     * Returns a fully-qualified table name.
-     *
-     * @param spec the inColumn parameter specification
-     * @return the standardized name
-     */
-    public String constructTableName(ParamSpec spec) {
-        return constructTableName((String) spec.getSchema().orElse(getSchema()), spec.getTable());
-    }
-
-    /**
-     * Returns a fully-qualified table name.
-     *
-     * @param schema the schema name or <code>null</code> if not applicable
-     * @param table  the table name
-     * @return the standardized name
-     */
-    public String constructTableName(String schema, String table) {
-        StringBuilder builder = new StringBuilder();
-        if (!isNullOrEmpty(schema)) {
-            builder.append(schema).append('.');
-        }
-        builder.append(table);
-        return builder.toString().toUpperCase();
-    }
-
-    public String constructSqlQuery(ParamSpec spec) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("SELECT DISTINCT ").append(spec.getColumn()).append(" FROM ").append(constructTableName(spec));
-        if (!spec.getWhere().isEmpty()) {
-            builder.append(" WHERE ");
-            int count = 0;
-            for (Object condition : spec.getWhere()) {
-                if (count > 0) {
-                    builder.append(" AND ");
-                }
-                builder.append(condition);
-                count++;
-            }
-
-        }
-        return builder.toString();
-    }
-
-    public List<Tuple> findValidParameters(Specs specs, int size) {
+    public List<Tuple> findValidParameters(ParamSpecs specs, int size) {
         try (Connection conn = getConnection()) {
-            specs.getSpecs().stream()
-                    .map(spec -> specs.getSqlStatement(spec));
+            specs.getParamSpecs().forEach(spec -> System.out.println(spec));
 
         } catch (SQLException cause) {
             throw new IllegalStateException(cause);
@@ -122,9 +59,9 @@ public class InParameterFinder {
         return null;
     }
 
-    private Stream<Tuple> retrieveValues(Connection conn, Specs specs, Tuple previous) {
-        ParamSpec spec = specs.getSpec(previous.size());
-        try (PreparedStatement ps = conn.prepareStatement(specs.getSqlStatement(spec))) {
+    private Stream<Tuple> retrieveValues(Connection conn, ParamSpecs specs, Tuple previous) {
+        ParamSpec spec = specs.getParamSpecs().get(previous.size());
+        try (PreparedStatement ps = conn.prepareStatement("")) {
             previous.populateStatementParameters(ps);
             try (ResultSet rs = ps.executeQuery()) {
                 Object value = rs.getObject(1);
@@ -151,7 +88,7 @@ public class InParameterFinder {
 
     private List<Object> retrieveValidValues(ParamSpec spec) throws SQLException {
         List<Object> values = new ArrayList<>();
-        String sql = constructSqlQuery(spec);
+        String sql = "SELECT name FROM types";
         try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
             try (ResultSet rs = stmt.executeQuery(sql)) {
                 while (rs.next()) {
@@ -165,41 +102,8 @@ public class InParameterFinder {
         return values;
     }
 
-    private void retrieveTableRelationshipsIfNotAlreadyInGraph(ParamSpec spec)
-            throws SQLException {
-        String node = constructTableName(spec);
-    }
-
-    private void retrieveTableGraph(String schema, String table)
-            throws SQLException {
-        String tblName = constructTableName(schema, table);
-        try (Connection conn = getConnection()) {
-            String catalog = null;
-            DatabaseMetaData dm = conn.getMetaData();
-            try (ResultSet rs = dm.getImportedKeys(catalog, schema, table)) {
-                while (rs.next()) {
-                    String fkTblName = constructTableName(rs.getString("FKTABLE_SCHEM"), rs.getString("FKTABLE_NAME"));
-                    StringBuilder builder = new StringBuilder();
-                    builder.append(tblName).append(".").append(rs.getString("PKCOLUMN_NAME"))
-                            .append("=").append(fkTblName).append(rs.getString("FKCOLUMN_NAME"));
-                }
-            }
-            try (ResultSet rs = dm.getExportedKeys(catalog, schema, table)) {
-                while (rs.next()) {
-                    String pkTblName = constructTableName(rs.getString("PKTABLE_SCHEM"), rs.getString("PKTABLE_NAME"));
-                    StringBuilder builder = new StringBuilder();
-                    builder.append(pkTblName).append(".").append(rs.getString("PKCOLUMN_NAME"))
-                            .append("=").append(tblName).append(rs.getString("FKCOLUMN_NAME"));
-                }
-            }
-        }
-    }
-
     private Connection getConnection() throws SQLException {
         return dataSource.getConnection();
-    }
-
-    private void findValues(Specs specs) {
     }
 
 }

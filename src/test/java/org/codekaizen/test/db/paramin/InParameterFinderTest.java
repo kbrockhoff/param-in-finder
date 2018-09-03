@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.codekaizen.test.db.paramin.Preconditions.isNullOrEmpty;
+import static org.codekaizen.test.db.paramin.Preconditions.isBlank;
 import static org.junit.Assert.*;
 
 /**
@@ -60,7 +60,6 @@ public class InParameterFinderTest {
         dataSource = candidate;
         createAndLoadDatabase();
         parameterFinder = new InParameterFinder(dataSource);
-        parameterFinder.setSchema("PUBLIC");
     }
 
     public void tearDown() {
@@ -85,7 +84,7 @@ public class InParameterFinderTest {
              BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             final List<String> lines = reader.lines()
                     .map(line -> line.trim())
-                    .filter(line -> !isNullOrEmpty(line))
+                    .filter(line -> !isBlank(line))
                     .collect(Collectors.toList());
             String sql = null;
             for (String line : lines) {
@@ -105,7 +104,7 @@ public class InParameterFinderTest {
              BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             final List<String> lines = reader.lines()
                     .map(line -> line.trim())
-                    .filter(line -> !isNullOrEmpty(line))
+                    .filter(line -> !isBlank(line))
                     .collect(Collectors.toList());
             String sql = null;
             for (String line : lines) {

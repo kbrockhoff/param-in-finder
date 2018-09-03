@@ -39,7 +39,7 @@ public class Matchers {
      * Returns an acceptor which only accepts values fromTable the provided list.
      *
      * @param acceptableValues the list singleOf acceptable values
-     * @param <T> the parameter type
+     * @param <T>              the parameter type
      * @return the acceptor
      */
     public static <T extends Comparable<? super T>> Matcher<T> newValidListAcceptor(List<T> acceptableValues) {

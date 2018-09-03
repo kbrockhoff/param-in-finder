@@ -15,10 +15,13 @@
  */
 package org.codekaizen.test.db.paramin;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -35,6 +38,8 @@ import java.util.regex.Pattern;
  * @author kbrockhoff
  */
 public class ParamSpecTest {
+
+    private final Logger logger = LoggerFactory.getLogger(ParamSpecTest.class);
 
     @Test
     public void shouldConstructRequirementWithAcceptableValuesList() {
@@ -91,6 +96,28 @@ public class ParamSpecTest {
                 .inColumn("ranking").fromTable("users").matching(v -> v.compareTo(8) < 0).build();
         assertTrue(requirement.isAcceptableValue(4));
         assertFalse(requirement.isAcceptableValue(16));
+    }
+
+    @Test
+    public void shouldConsiderSpecsWithSameFieldValuesAsEqual() {
+        List<String> acceptable = Arrays.asList("administrator", "poweruser");
+        ParamSpec<String> spec1 = ParamSpec.find(String.class)
+                .fromTable("public", "users").inColumn("usertype")
+                .matching(Matchers.newValidListAcceptor(acceptable)).build();
+        ParamSpec<String> spec2 = ParamSpec.find(String.class)
+                .fromTable("public", "users").inColumn("usertype")
+                .matching(Matchers.newValidListAcceptor(acceptable)).build();
+        assertEquals(spec1, spec2);
+        assertEquals(spec1.hashCode(), spec2.hashCode());
+        logger.info("{}", spec1);
+        assertEquals(spec1.toString(), spec2.toString());
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void shouldNotAllowCreationOfBuilderWithoutSupplyingType() {
+        ParamSpec<?> requirement = ParamSpec.find(null)
+                .inColumn("ranking").fromTable("users").matching(v -> v.compareTo(8) < 0).build();
+        assertEquals("ranking", requirement.getColumn());
     }
 
 }

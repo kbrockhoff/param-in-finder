@@ -40,9 +40,10 @@ public class Tuple implements Iterable<Object> {
     /**
      * Constructs a new single tuple object containing the supplied values.
      *
-     * @param name the name
+     * @param name  the name
      * @param value the value which may be null
      * @return the tuple
+     * @throws IllegalArgumentException if supplied a blank name
      */
     public static Tuple singleOf(String name, Object value) {
         checkNotEmpty(name);
@@ -59,7 +60,7 @@ public class Tuple implements Iterable<Object> {
     /**
      * Constructs a tuple with the supplied names and values.
      *
-     * @param names the list singleOf names to associate with the values
+     * @param names  the list singleOf names to associate with the values
      * @param values the values
      */
     public Tuple(List<String> names, List<Object> values) {
@@ -73,7 +74,7 @@ public class Tuple implements Iterable<Object> {
     /**
      * Returns a new tuple with the supplied element added to the end singleOf this tuple.
      *
-     * @param name the name
+     * @param name  the name
      * @param value the value which may be null
      * @return the tuple
      */
@@ -121,28 +122,78 @@ public class Tuple implements Iterable<Object> {
         return values.size();
     }
 
+    /**
+     * Returns whether any of the values are {@code null}.
+     *
+     * @return contains a {@code null} value or not
+     */
+    public boolean containsNullValue() {
+        boolean result = false;
+        for (Object value : values) {
+            if (value == null) {
+                result = true;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Returns the list of names for values.
+     *
+     * @return an unmodifiable list of names
+     */
     public List<String> getFieldNames() {
         return Collections.unmodifiableList(names);
     }
 
+    /**
+     * Returns the list of contained values.
+     *
+     * @return an unmodifiable list of values
+     */
     public List<Object> getValues() {
         return Collections.unmodifiableList(values);
     }
 
+    /**
+     * Returns whether a contained value has the specified name.
+     *
+     * @param name the field name to check
+     * @return present or not
+     */
     public boolean hasFieldName(String name) {
         return names.contains(name);
     }
 
+    /**
+     * Return the value of the field given the name.
+     *
+     * @param name the field name
+     * @return the value
+     * @throws IllegalArgumentException if the name is not present
+     */
     public Object getValue(String name) {
         int index = indexOf(name);
         checkArgument(index >= 0, "Field name [" + name + "] does not exist");
         return getValue(index);
     }
 
+    /**
+     * Return the value of the field given the index position.
+     *
+     * @param index the zero-based position
+     * @return the value
+     * @throws IndexOutOfBoundsException if the index position is out of bounds
+     */
     public Object getValue(int index) {
         return values.get(index);
     }
 
+    /**
+     * Returns the types of the contained values.
+     *
+     * @return the classes of the values
+     */
     @SuppressWarnings("rawtypes")
     public List<Class> getFieldTypes() {
         ArrayList<Class> types = new ArrayList<>(values.size());
@@ -180,12 +231,10 @@ public class Tuple implements Iterable<Object> {
         boolean result;
         if (this == obj) {
             result = true;
-        }
-        else if (obj instanceof Tuple) {
+        } else if (obj instanceof Tuple) {
             Tuple other = (Tuple) obj;
             result = Objects.equals(names, other.names) && Objects.equals(values, other.values);
-        }
-        else {
+        } else {
             result = false;
         }
         return result;
@@ -193,14 +242,11 @@ public class Tuple implements Iterable<Object> {
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append('(');
+        StringJoiner joiner = new StringJoiner(", ", "(", ")");
         for (int i = 0; i < values.size(); i++) {
-            if (i > 0) builder.append(',');
-            builder.append(names.get(i)).append(": ").append(values.get(i));
+            joiner.add(names.get(i) + ": " + values.get(i));
         }
-        builder.append(')');
-        return builder.toString();
+        return joiner.toString();
     }
 
     private int indexOf(String name) {

@@ -16,6 +16,8 @@
 package org.codekaizen.test.db.paramin;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -29,6 +31,8 @@ import static org.junit.Assert.*;
  * @author kbrockhoff
  */
 public class TupleTest {
+
+    private final Logger logger = LoggerFactory.getLogger(TupleTest.class);
 
     @Test
     public void shouldConstructSingleTupleUsingOf() {
@@ -54,9 +58,9 @@ public class TupleTest {
 
     @Test
     public void shouldSupportDifferentValueTypes() {
-        String[] names = { "a", "b", "c", "d" };
-        Object[] values = { "TEST", new Timestamp(System.currentTimeMillis()), new BigDecimal("8.00"), 732487L };
-        Class[] types = { String.class, Timestamp.class, BigDecimal.class, Long.class };
+        String[] names = {"a", "b", "c", "d"};
+        Object[] values = {"TEST", new Timestamp(System.currentTimeMillis()), new BigDecimal("8.00"), 732487L};
+        Class[] types = {String.class, Timestamp.class, BigDecimal.class, Long.class};
         Tuple tuple = Tuple.EMPTY_TUPLE;
         for (int i = 0; i < names.length; i++) {
             tuple = tuple.addElement(names[i], values[i]);
@@ -69,8 +73,8 @@ public class TupleTest {
 
     @Test
     public void shouldConsiderTuplesWithSameValuesAsEqual() {
-        String[] names = { "a", "b", "c", "d" };
-        Object[] values = { "TEST", new Timestamp(System.currentTimeMillis()), new BigDecimal("8.00"), null };
+        String[] names = {"a", "b", "c", "d"};
+        Object[] values = {"TEST", new Timestamp(System.currentTimeMillis()), new BigDecimal("8.00"), null};
         Tuple tuple1 = Tuple.EMPTY_TUPLE;
         Tuple tuple2 = Tuple.EMPTY_TUPLE;
         for (int i = 0; i < names.length; i++) {
@@ -79,6 +83,22 @@ public class TupleTest {
         }
         assertEquals(tuple1, tuple2);
         assertEquals(tuple1.hashCode(), tuple2.hashCode());
+        logger.info("{}", tuple1);
+        assertEquals(tuple1.toString(), tuple2.toString());
+    }
+
+    @Test
+    public void shouldReturnWhetherTheTupleContainsANullValueOrNot() {
+        Tuple nullTuple = Tuple.singleOf("field1", null);
+        assertTrue(nullTuple.containsNullValue());
+        Tuple nonNullTuple = Tuple.singleOf("field1", "This is a test");
+        assertFalse(nonNullTuple.containsNullValue());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldNotAllowBlankFieldNames() {
+        Tuple tuple = Tuple.EMPTY_TUPLE.addElement("field1", 1L).addElement("", 2L);
+        assertEquals(2, tuple.size());
     }
 
 }

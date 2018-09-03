@@ -15,7 +15,9 @@
  */
 package org.codekaizen.test.db.paramin;
 
+import java.util.Collection;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 
@@ -33,14 +35,13 @@ public class Condition {
     /**
      * Constructs a condition object.
      *
-     * @param column the database column name
+     * @param column   the database column name
      * @param operator the SQL operator
-     * @param value the value(s) to apply the operator to
+     * @param value    the value(s) to apply the operator to
      */
     public Condition(String column, Operator operator, Object value) {
         checkNotNull(column);
         checkNotNull(operator);
-        checkNotNull(value);
         this.column = column;
         this.operator = operator;
         this.value = value;
@@ -91,8 +92,31 @@ public class Condition {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append(column).append(operator.getSqlString()).append(String.valueOf(value));
+        builder.append(column).append(operator.getSqlString());
+        if (value == null) {
+            builder.append("NULL");
+        } else if (value instanceof Collection) {
+            builder.append(((Collection) value).stream()
+                    .map(this::formatValue)
+                    .collect(Collectors.joining(",", "(", ")")));
+        } else {
+            builder.append(formatValue(value));
+        }
         return builder.toString();
+    }
+
+    private String formatValue(Object val) {
+        StringBuilder builder = new StringBuilder();
+        if (val instanceof String && !isFunctionOrSubselect((String) val)) {
+            builder.append("'").append(String.valueOf(val)).append("'");
+        } else {
+            builder.append(String.valueOf(val));
+        }
+        return builder.toString();
+    }
+
+    private boolean isFunctionOrSubselect(String val) {
+        return val.indexOf('(') >= 0 && val.indexOf(')') >= 0;
     }
 
 }

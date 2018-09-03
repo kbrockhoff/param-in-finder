@@ -25,7 +25,7 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
 
 
 /**
- * Holds the requirements for one specific input parameter.
+ * Holds the specification or requirements for an input parameter.
  *
  * @author kbrockhoff
  */
@@ -35,7 +35,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
      * Instantiates a requirement find for the specified Java type.
      *
      * @param javaType the parameter class
-     * @param <T> the parameter type
+     * @param <T>      the parameter type
      * @return the find
      */
     public static <T extends Comparable<? super T>> Builder<T> find(Class<T> javaType) {
@@ -43,13 +43,12 @@ public class ParamSpec<T extends Comparable<? super T>> {
     }
 
     /**
-     * Builder for a requirement instance.
+     * Fluent builder for a requirement instance.
      *
      * @param <T> the parameter type
      */
     public static class Builder<T extends Comparable<? super T>> {
 
-        private String catalog;
         private String schema;
         private String table;
         private String column;
@@ -82,34 +81,60 @@ public class ParamSpec<T extends Comparable<? super T>> {
             }
         }
 
+        /**
+         * Sets the name of the database column to find values in.
+         *
+         * @param column the column name
+         * @return this builder
+         */
         public Builder inColumn(String column) {
             checkNotEmpty(column, "column is required");
             this.column = column;
             return this;
         }
 
+        /**
+         * Sets the name of the database table to find values for.
+         *
+         * @param table the DB table name
+         * @return this builder
+         */
         public Builder fromTable(String table) {
-            return fromTable(null, null, table);
+            return fromTable(null, table);
         }
 
+        /**
+         * Sets the name of the database table to find values for.
+         *
+         * @param schema the DB schema name
+         * @param table  the DB table name
+         * @return this builder
+         */
         public Builder fromTable(String schema, String table) {
-            return fromTable(null, schema, table);
-        }
-
-        public Builder fromTable(String catalog, String schema, String table) {
             checkNotEmpty(table, "table is required");
-            this.catalog = emptyToNull(catalog);
-            this.schema = emptyToNull(schema);
+            this.schema = schema;
             this.table = table;
             return this;
         }
 
+        /**
+         * Adds a condition to the SQL WHERE clause which should be used to limit considered values.
+         *
+         * @param condition the where condition
+         * @return this builder
+         */
         public Builder where(Condition condition) {
             checkNotNull(condition, "condition cannot be null");
             this.where.add(condition);
             return this;
         }
 
+        /**
+         * Specifies a filter for further limiting values which meet this specification.
+         *
+         * @param matcher replacement for the default matcher which allows all values
+         * @return this builder
+         */
         public Builder matching(Matcher<T> matcher) {
             checkNotNull(matcher, "matcher cannot be null");
             this.matcher = matcher;
@@ -124,12 +149,11 @@ public class ParamSpec<T extends Comparable<? super T>> {
          * @throws IllegalArgumentException if any required values have not been specified
          */
         public ParamSpec<T> build() {
-            return new ParamSpec<>(catalog, schema, table, column, where, sqlType, javaType, matcher);
+            return new ParamSpec<>(schema, table, column, where, sqlType, javaType, matcher);
         }
 
     }
 
-    private final String catalog;
     private final String schema;
     private final String table;
     private final String column;
@@ -138,11 +162,10 @@ public class ParamSpec<T extends Comparable<? super T>> {
     private final Class<T> javaType;
     private final Matcher<T> matcher;
 
-    private ParamSpec(String catalog, String schema, String table, String column, List<Condition> where,
+    private ParamSpec(String schema, String table, String column, List<Condition> where,
                       JDBCType sqlType, Class<T> javaType, Matcher<T> matcher) {
-        checkArgument(!isNullOrEmpty(table), "table is required");
-        checkArgument(!isNullOrEmpty(column), "column is required");
-        this.catalog = catalog;
+        checkArgument(!isBlank(table), "table is required");
+        checkArgument(!isBlank(column), "column is required");
         this.schema = schema;
         this.table = table;
         this.column = column;
@@ -152,34 +175,66 @@ public class ParamSpec<T extends Comparable<? super T>> {
         this.matcher = matcher;
     }
 
-    public Optional<String> getCatalog() {
-        return Optional.ofNullable(catalog);
-    }
-
+    /**
+     * Returns the database schema name if it has been specified.
+     *
+     * @return the schema name if not using the default
+     */
     public Optional<String> getSchema() {
         return Optional.ofNullable(schema);
     }
 
+    /**
+     * Returns the database table name.
+     *
+     * @return the table name
+     */
     public String getTable() {
         return table;
     }
 
+    /**
+     * Returns the database column name.
+     *
+     * @return the column name
+     */
     public String getColumn() {
         return column;
     }
 
+    /**
+     * Returns the list of SQL WHERE clause conditions which should be AND'd together.
+     *
+     * @return the where clause expressions
+     */
     public List<Condition> getWhere() {
         return where;
     }
 
+    /**
+     * Returns the expected JDBC type of the database column.
+     *
+     * @return the type
+     */
     public JDBCType getSqlType() {
         return sqlType;
     }
 
+    /**
+     * Returns the Java type the retrieved values should be converted to.
+     *
+     * @return the type
+     */
     public Class<T> getJavaType() {
         return javaType;
     }
 
+    /**
+     * Returns whether the supplied value is determined to be valid using the spec's matcher.
+     *
+     * @param value the database value to evaluate
+     * @return acceptable or not
+     */
     public boolean isAcceptableValue(T value) {
         checkNotNull(value, "value is required parameter");
         return matcher.isAcceptableValue(value);
@@ -190,8 +245,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ParamSpec<?> that = (ParamSpec<?>) o;
-        return Objects.equals(catalog, that.catalog) &&
-                Objects.equals(schema, that.schema) &&
+        return Objects.equals(schema, that.schema) &&
                 Objects.equals(table, that.table) &&
                 Objects.equals(column, that.column) &&
                 Objects.equals(where, that.where) &&
@@ -202,7 +256,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
     @Override
     public int hashCode() {
 
-        return Objects.hash(catalog, schema, table, column, where, sqlType, javaType);
+        return Objects.hash(schema, table, column, where, sqlType, javaType);
     }
 
     @Override
