@@ -34,6 +34,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
+import static org.codekaizen.test.db.paramin.ParamSpec.find;
+import static org.codekaizen.test.db.paramin.ParamSpecs.create;
 import static org.codekaizen.test.db.paramin.Preconditions.isBlank;
 import static org.junit.Assert.*;
 
@@ -47,7 +49,7 @@ public class FindParametersExecutorTest {
     private final Logger logger = LoggerFactory.getLogger(FindParametersExecutorTest.class);
     private Server server;
     private DataSource dataSource;
-    private FindParametersExecutor parameterFinder;
+    private FindParametersExecutor findParametersExecutor;
 
     @Before
     public void setUp() throws SQLException, IOException {
@@ -59,7 +61,7 @@ public class FindParametersExecutorTest {
         candidate.setPassword("");
         dataSource = candidate;
         createAndLoadDatabase();
-        parameterFinder = new FindParametersExecutor(dataSource);
+        findParametersExecutor = new FindParametersExecutor(dataSource);
     }
 
     public void tearDown() {
@@ -70,14 +72,11 @@ public class FindParametersExecutorTest {
 
     @Test
     public void findValidParameters() throws SQLException, ExecutionException, InterruptedException {
-        ParamSpecs paramSpecs = ParamSpecs
-                .create(ParamSpec.find(String.class).fromTable("types").inColumn("name").build())
-                .join(ParamSpec.find(String.class).fromTable("pets").inColumn("id").build(),
-                        new JoinPair("id", "type_id"))
-                .join(ParamSpec.find(String.class).fromTable("owners").inColumn("city").build(),
-                        new JoinPair("owner_id", "id"));
+        ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name").build())
+                .join(find(String.class).fromTable("pets").inColumn("id").build(), new JoinPair("id", "type_id"))
+                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"));
         int size = 4;
-        Future<Set<Tuple>> future = parameterFinder.findValidParameters(paramSpecs, size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs, size);
         Set<Tuple> results = future.get();
         results.forEach(t -> logger.info("{}", t));
         assertEquals(size, results.size());
