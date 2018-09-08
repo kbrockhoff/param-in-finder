@@ -16,7 +16,7 @@
 package org.codekaizen.test.db.paramin;
 
 /**
- * Ennumerates the supported where clause operators.
+ * Ennumerates the supported SQL where clause operators.
  *
  * @author kbrockhoff
  */

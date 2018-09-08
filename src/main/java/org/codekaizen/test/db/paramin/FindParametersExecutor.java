@@ -29,13 +29,13 @@ import java.util.concurrent.Future;
 import static org.codekaizen.test.db.paramin.Preconditions.*;
 
 /**
- * Queries the RDBMS to find stored procedure inColumn parameters which will result inColumn
- * cursor results matching the specified criteria.
+ * Manages the execution of tasks to find valid parameters for RDBMS stored procedure queries. This executor
+ * is designed to work as a singleton which can execute multiple find parameters tasks.
  *
  * @author kbrockhoff
  */
-@Named("inParameterFinder")
-public class InParameterFinder implements Flow.Publisher<Tuple> {
+@Named("findParametersExecutor")
+public class FindParametersExecutor implements Flow.Publisher<Tuple> {
 
     private final DataSource dataSource;
     private ExecutorService executorService;
@@ -46,28 +46,45 @@ public class InParameterFinder implements Flow.Publisher<Tuple> {
      * @param dataSource the database connection pool
      */
     @Inject
-    public InParameterFinder(DataSource dataSource) {
+    public FindParametersExecutor(DataSource dataSource) {
         checkNotNull(dataSource, "dataSource is required parameter");
         this.dataSource = dataSource;
         this.executorService = ForkJoinPool.commonPool();
     }
 
+    /**
+     * Sets the executor service to run retrievals in if not using the default fork join pool.
+     *
+     * @param executorService the service
+     */
     public void setExecutorService(ExecutorService executorService) {
         checkNotNull(executorService);
         this.executorService = executorService;
     }
 
+    /**
+     * Returns a set of tuples matching the supplied specifications.
+     *
+     * @param paramSpecs the parameter specifications
+     * @param desiredSize the number of unique parameter combinations desired
+     * @return a future which will return the parameter combinations once the retrieval has finished
+     */
     public Future<Set<Tuple>> findValidParameters(ParamSpecs paramSpecs, int desiredSize) {
-        DefaultTupleSetRetriever retriever = new DefaultTupleSetRetriever(paramSpecs, desiredSize);
-        subscribe(retriever);
-        return executorService.submit(retriever);
+        DefaultFindParametersTask task = new DefaultFindParametersTask(paramSpecs, desiredSize);
+        subscribe(task);
+        return executorService.submit(task);
     }
 
+    /**
+     * Initiates a stream of tuples matching a set of parameter specifications.
+     *
+     * @param subscriber must implement {@link FindParametersTask}
+     */
     @Override
     public void subscribe(Flow.Subscriber<? super Tuple> subscriber) {
-        checkArgument(subscriber instanceof TupleSetRetriever, "subscriber must implement TupleSetRetriever");
-        TupleSetRetriever retriever = (TupleSetRetriever) subscriber;
-        retriever.initialize(getConnection());
+        checkArgument(subscriber instanceof FindParametersTask, "subscriber must implement FindParametersTask");
+        FindParametersTask task = (FindParametersTask) subscriber;
+        task.initialize(getConnection());
     }
 
     private Connection getConnection() {

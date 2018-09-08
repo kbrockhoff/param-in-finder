@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Provides standard implementations singleOf <code>Matcher</code>.
+ * Provides standard implementations of {@link Matcher}.
  *
  * @author kbrockhoff
  */
@@ -36,10 +36,10 @@ public class Matchers {
     }
 
     /**
-     * Returns an acceptor which only accepts values fromTable the provided list.
+     * Returns an acceptor which only accepts values from the provided list.
      *
-     * @param acceptableValues the list singleOf acceptable values
-     * @param <T>              the parameter type
+     * @param acceptableValues the list of acceptable values
+     * @param <T> the parameter type
      * @return the acceptor
      */
     public static <T extends Comparable<? super T>> Matcher<T> newValidListAcceptor(List<T> acceptableValues) {

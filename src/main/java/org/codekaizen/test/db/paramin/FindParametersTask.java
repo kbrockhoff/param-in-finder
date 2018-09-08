@@ -22,11 +22,11 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 
 /**
- * Defines a retriever of tuple sets matching the specified parameter specifications and tuple set size.
+ * Defines a task for retrieving a set of database query parameter tuples matching the specified requirements.
  *
  * @author kbrockhoff
  */
-public interface TupleSetRetriever extends Callable<Set<Tuple>>, AutoCloseable, Flow.Subscriber<Tuple> {
+public interface FindParametersTask extends Callable<Set<Tuple>>, AutoCloseable, Flow.Subscriber<Tuple> {
 
     /**
      * Returns the contained parameter specifications.
@@ -36,14 +36,14 @@ public interface TupleSetRetriever extends Callable<Set<Tuple>>, AutoCloseable, 
     ParamSpecs getParamSpecs();
 
     /**
-     * Returns the desired size of the tuple set.
+     * Returns the desired size of the parameter tuple set.
      *
      * @return the size
      */
     int getDesiredSize();
 
     /**
-     * Initializes the reactive stream based retrieval flow.
+     * Initializes the reactive stream based retrieval flow task.
      *
      * @param connection the database connection to use in querying for data
      * @throws IllegalStateException if unable to prepare the queries
@@ -51,7 +51,7 @@ public interface TupleSetRetriever extends Callable<Set<Tuple>>, AutoCloseable, 
     void initialize(Connection connection) throws IllegalStateException;
 
     /**
-     * Returns the retrieved set of tuples once the retrieval has been completed. It will block until the
+     * Returns the retrieved set of tuples once the task has been completed. It will block until the
      * tuples are all retrieved.
      *
      * @return the tuple set

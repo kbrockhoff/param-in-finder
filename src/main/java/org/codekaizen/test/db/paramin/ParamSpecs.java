@@ -26,7 +26,7 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
 import static org.codekaizen.test.db.paramin.Preconditions.isBlank;
 
 /**
- * Holds the requirements for all input parameters.
+ * Holds the specifications for all database input parameters for one query in a test case execution.
  *
  * @author kbrockhoff
  */

@@ -38,16 +38,16 @@ import static org.codekaizen.test.db.paramin.Preconditions.isBlank;
 import static org.junit.Assert.*;
 
 /**
- * Unit tests for InParameterFinder.
+ * Unit tests for FindParametersExecutor.
  *
  * @author kbrockhoff
  */
-public class InParameterFinderTest {
+public class FindParametersExecutorTest {
 
-    private final Logger logger = LoggerFactory.getLogger(InParameterFinderTest.class);
+    private final Logger logger = LoggerFactory.getLogger(FindParametersExecutorTest.class);
     private Server server;
     private DataSource dataSource;
-    private InParameterFinder parameterFinder;
+    private FindParametersExecutor parameterFinder;
 
     @Before
     public void setUp() throws SQLException, IOException {
@@ -59,7 +59,7 @@ public class InParameterFinderTest {
         candidate.setPassword("");
         dataSource = candidate;
         createAndLoadDatabase();
-        parameterFinder = new InParameterFinder(dataSource);
+        parameterFinder = new FindParametersExecutor(dataSource);
     }
 
     public void tearDown() {

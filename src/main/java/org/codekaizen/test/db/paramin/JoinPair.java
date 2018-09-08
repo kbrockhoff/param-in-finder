@@ -20,7 +20,7 @@ import java.util.Objects;
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotEmpty;
 
 /**
- * Wraps a pair of column names for joining to database tables in an SQL query.
+ * Wraps a pair of column names for joining two database tables in an SQL query.
  *
  * @author kbrockhoff
  */
@@ -29,6 +29,12 @@ public class JoinPair {
     private final String firstTableColumn;
     private final String secondTableColumn;
 
+    /**
+     * Constructs a join pair object.
+     *
+     * @param firstTableColumn the column in the first table
+     * @param secondTableColumn the column in the second table
+     */
     public JoinPair(String firstTableColumn, String secondTableColumn) {
         checkNotEmpty(firstTableColumn);
         checkNotEmpty(secondTableColumn);
@@ -36,10 +42,20 @@ public class JoinPair {
         this.secondTableColumn = secondTableColumn;
     }
 
+    /**
+     * Returns the column in the first table to join on.
+     *
+     * @return the column name
+     */
     public String getFirstTableColumn() {
         return firstTableColumn;
     }
 
+    /**
+     * Returns the column in the second table to join on.
+     *
+     * @return the column name
+     */
     public String getSecondTableColumn() {
         return secondTableColumn;
     }
@@ -56,6 +72,13 @@ public class JoinPair {
     @Override
     public int hashCode() {
         return Objects.hash(firstTableColumn, secondTableColumn);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("a.").append(firstTableColumn).append("=b.").append(secondTableColumn);
+        return builder.toString();
     }
 
 }

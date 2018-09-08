@@ -31,13 +31,13 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotEmpty;
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 
 /**
- * Holds the results from retrieving a valid list of input parameter tuples.
+ * Retrieves a valid set of database input parameter tuples.
  *
  * @author kbrockhoff
  */
-public class DefaultTupleSetRetriever implements TupleSetRetriever {
+public class DefaultFindParametersTask implements FindParametersTask {
 
-    private final Logger logger = LoggerFactory.getLogger(DefaultTupleSetRetriever.class);
+    private final Logger logger = LoggerFactory.getLogger(DefaultFindParametersTask.class);
     private final ParamSpecs paramSpecs;
     private final int desiredSize;
     private final Set<Tuple> results;
@@ -53,7 +53,7 @@ public class DefaultTupleSetRetriever implements TupleSetRetriever {
      * @param paramSpecs  the specifications on what to retrieve
      * @param desiredSize the number of distinct parameter combinations
      */
-    public DefaultTupleSetRetriever(ParamSpecs paramSpecs, int desiredSize) {
+    public DefaultFindParametersTask(ParamSpecs paramSpecs, int desiredSize) {
         checkNotNull(paramSpecs, "paramSpecs is required");
         checkArgument(desiredSize > 0, "desiredSize must be greater than zero");
         this.paramSpecs = paramSpecs;
@@ -102,7 +102,7 @@ public class DefaultTupleSetRetriever implements TupleSetRetriever {
         logger.debug("added {} resulting in results.desiredSize={}", objects, results.size());
         if (results.size() >= desiredSize) {
             subscription.cancel();
-            semaphore.release();
+            cleanupFlow();
         } else {
             subscription.request(1L);
         }
@@ -112,16 +112,14 @@ public class DefaultTupleSetRetriever implements TupleSetRetriever {
     public void onError(Throwable throwable) {
         logger.trace("onError({})", throwable);
         logger.info("retrieval failed: {}", throwable.getMessage());
-        semaphore.release();
-        close();
+        cleanupFlow();
         throw new IllegalStateException(throwable);
     }
 
     @Override
     public void onComplete() {
         logger.trace("onComplete()");
-        semaphore.release();
-        close();
+        cleanupFlow();
     }
 
     @Override
@@ -167,6 +165,11 @@ public class DefaultTupleSetRetriever implements TupleSetRetriever {
 
     private Connection getConnection() {
         return connection;
+    }
+
+    private void cleanupFlow() {
+        semaphore.release();
+        close();
     }
 
     private void closeQuietly(AutoCloseable closeable) {

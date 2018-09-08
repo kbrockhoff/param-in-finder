@@ -15,7 +15,7 @@
  */
 
 /**
- * Provides a finder for query parameter values fromTable RDBMS existing data for use inColumn testing.
+ * Provides for the retrieval of valid database query parameter values from existing data for use in testing.
  *
  * @author kbrockhoff
  */

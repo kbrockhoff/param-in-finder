@@ -60,7 +60,7 @@ public class Tuple implements Iterable<Object> {
     /**
      * Constructs a tuple with the supplied names and values.
      *
-     * @param names  the list singleOf names to associate with the values
+     * @param names  the list of names to associate with the values
      * @param values the values
      */
     public Tuple(List<String> names, List<Object> values) {
@@ -72,10 +72,10 @@ public class Tuple implements Iterable<Object> {
     }
 
     /**
-     * Returns a new tuple with the supplied element added to the end singleOf this tuple.
+     * Returns a new tuple with the supplied element added to the end of this tuple.
      *
      * @param name  the name
-     * @param value the value which may be null
+     * @param value the value which may be {@code null}
      * @return the tuple
      */
     public Tuple addElement(String name, Object value) {
@@ -88,10 +88,10 @@ public class Tuple implements Iterable<Object> {
     }
 
     /**
-     * Populates a prepared statement's parameters with the values fromTable this tuple.
+     * Populates a prepared statement's parameters with the values from this tuple.
      *
      * @param statement the prepared statement
-     * @throws SQLException if parameterIndex does not correspond to a parameter marker inColumn the SQL statement
+     * @throws SQLException if parameterIndex does not correspond to a parameter marker in the SQL statement
      */
     public void populateStatementParameters(PreparedStatement statement) throws SQLException {
         checkNotNull(statement);
@@ -101,10 +101,10 @@ public class Tuple implements Iterable<Object> {
     }
 
     /**
-     * Populates a callable statement's parameters with the values fromTable this tuple.
+     * Populates a callable statement's parameters with the values from this tuple.
      *
      * @param statement the callable statement
-     * @throws SQLException if parameterIndex does not correspond to a parameter marker inColumn the SQL statement
+     * @throws SQLException if parameterIndex does not correspond to a parameter marker in the SQL statement
      */
     public void populateStatementParameters(CallableStatement statement) throws SQLException {
         checkNotNull(statement);
@@ -114,7 +114,7 @@ public class Tuple implements Iterable<Object> {
     }
 
     /**
-     * Returns the number singleOf tuple elements.
+     * Returns the number of tuple elements.
      *
      * @return the size
      */

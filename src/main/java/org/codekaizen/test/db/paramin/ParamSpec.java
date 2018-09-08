@@ -25,14 +25,14 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
 
 
 /**
- * Holds the specification or requirements for an input parameter.
+ * Holds the specification (i.e. requirements) for a single database query input parameter.
  *
  * @author kbrockhoff
  */
 public class ParamSpec<T extends Comparable<? super T>> {
 
     /**
-     * Instantiates a requirement find for the specified Java type.
+     * Instantiates a parameter specification builder for the specified Java type.
      *
      * @param javaType the parameter class
      * @param <T>      the parameter type
@@ -43,7 +43,7 @@ public class ParamSpec<T extends Comparable<? super T>> {
     }
 
     /**
-     * Fluent builder for a requirement instance.
+     * Fluent builder for a parameter specification instance.
      *
      * @param <T> the parameter type
      */

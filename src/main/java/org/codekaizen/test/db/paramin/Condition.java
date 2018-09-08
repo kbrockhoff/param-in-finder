@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 
 /**
- * Represents one where clause condition.
+ * Represents one SQL where clause condition.
  *
  * @author kbrockhoff
  */
