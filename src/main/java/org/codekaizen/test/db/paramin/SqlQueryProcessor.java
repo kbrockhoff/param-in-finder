@@ -41,6 +41,7 @@ public class SqlQueryProcessor<T extends Comparable<? super T>>
     private final PreparedStatement statement;
     private Flow.Subscription subscription;
     private Set<Flow.Subscriber<? super Tuple>> subscribers = new HashSet<>();
+    private ResultSet resultSet;
 
     public SqlQueryProcessor(ParamSpec<T> paramSpec, PreparedStatement statement) {
         checkNotNull(paramSpec);
@@ -63,17 +64,78 @@ public class SqlQueryProcessor<T extends Comparable<? super T>>
     @Override
     public void onNext(Tuple objects) {
         if (objects.containsNullValue()) {
+            subscription.request(1L);
             return;
         }
+        queryDatabaseForValues(objects);
+    }
+
+    @Override
+    public void onError(Throwable throwable) {
+        subscribers.forEach(s -> s.onError(throwable));
+    }
+
+    @Override
+    public void onComplete() {
+        subscribers.forEach(s -> s.onComplete());
+    }
+
+    @Override
+    public void request(long l) {
+        if (isInitialProcessor()) {
+            for (int i = 0; i < (int) l; i++) {
+                queryDatabaseForValues(Tuple.EMPTY_TUPLE);
+            }
+        } else {
+            subscription.request(l);
+        }
+    }
+
+    @Override
+    public void cancel() {
+        if (subscription != null) {
+            subscription.cancel();
+        }
+    }
+
+    @Override
+    public void close() {
         try {
-            objects.populateStatementParameters(statement);
-            try (ResultSet rs = statement.executeQuery()) {
-                while (rs.next()) {
-                    T value = retrieveValue(rs);
+            if (resultSet != null) {
+                resultSet.close();
+            }
+            statement.close();
+        } catch (SQLException ignore) {
+            logger.info("exception closing prepared statement: {}", ignore.getMessage());
+        }
+    }
+
+    private boolean isInitialProcessor() {
+        return subscription == null;
+    }
+
+    private void queryDatabaseForValues(Tuple objects) {
+        try {
+            if (isInitialProcessor()) {
+                retrieveResultSetIfNeeded();
+                while (resultSet.next()) {
+                    T value = retrieveValue(resultSet);
                     if (paramSpec.isAcceptableValue(value)) {
                         Tuple result = objects.addElement(paramSpec.getColumn(), value);
                         subscribers.forEach(s -> s.onNext(result));
                         break;
+                    }
+                }
+            } else {
+                objects.populateStatementParameters(statement);
+                try (ResultSet rs = statement.executeQuery()) {
+                    while (rs.next()) {
+                        T value = retrieveValue(rs);
+                        if (paramSpec.isAcceptableValue(value)) {
+                            Tuple result = objects.addElement(paramSpec.getColumn(), value);
+                            subscribers.forEach(s -> s.onNext(result));
+                            break;
+                        }
                     }
                 }
             }
@@ -111,36 +173,9 @@ public class SqlQueryProcessor<T extends Comparable<? super T>>
         return result;
     }
 
-    @Override
-    public void onError(Throwable throwable) {
-        subscribers.forEach(s -> s.onError(throwable));
-    }
-
-    @Override
-    public void onComplete() {
-        subscribers.forEach(s -> s.onComplete());
-    }
-
-    @Override
-    public void request(long l) {
-        if (subscription != null) {
-            subscription.request(l);
-        }
-    }
-
-    @Override
-    public void cancel() {
-        if (subscription != null) {
-            subscription.cancel();
-        }
-    }
-
-    @Override
-    public void close() {
-        try {
-            statement.close();
-        } catch (SQLException ignore) {
-            logger.info("exception closing prepared statement: {}", ignore.getMessage());
+    private void retrieveResultSetIfNeeded() throws SQLException {
+        if (resultSet == null) {
+            resultSet = statement.executeQuery();
         }
     }
 

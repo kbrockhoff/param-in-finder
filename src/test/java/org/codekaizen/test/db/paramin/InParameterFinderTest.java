@@ -29,9 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -82,9 +80,11 @@ public class InParameterFinderTest {
                 .join(ParamSpec.find(String.class).fromTable("owners").inColumn("city").build(),
                         new JoinPair("owner_id", "id"));
         parameterFinder.setParamSpecs(paramSpecs);
-        Future<List<Tuple>> future = parameterFinder.findValidParameters(2);
-        List<Tuple> results = future.get();
-        assertEquals(0, results.size());
+        int size = 2;
+        Future<Set<Tuple>> future = parameterFinder.findValidParameters(size);
+        Set<Tuple> results = future.get();
+        results.forEach(t -> logger.info("{}", t));
+        assertEquals(size, results.size());
     }
 
     private void createAndLoadDatabase() throws SQLException, IOException {

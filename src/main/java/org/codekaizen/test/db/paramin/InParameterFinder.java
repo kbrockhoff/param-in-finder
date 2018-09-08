@@ -22,14 +22,11 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.sql.DataSource;
 import java.io.Closeable;
-import java.io.IOException;
 import java.sql.*;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
-import java.util.stream.Stream;
 
 import static org.codekaizen.test.db.paramin.Preconditions.*;
 
@@ -69,7 +66,7 @@ public class InParameterFinder implements Flow.Publisher<Tuple>, Closeable {
         processors = configureProcessingFlow();
     }
 
-    public Future<List<Tuple>> findValidParameters(int size) {
+    public Future<Set<Tuple>> findValidParameters(int size) {
         TupleListRetriever future = new TupleListRetriever(size);
         subscribe(future);
         return future;
@@ -108,10 +105,8 @@ public class InParameterFinder implements Flow.Publisher<Tuple>, Closeable {
                 previous = proc;
             }
         } catch (SQLException cause) {
-            throw new IllegalStateException(cause);
-        }
-        finally {
             close();
+            throw new IllegalStateException(cause);
         }
         return processors;
     }

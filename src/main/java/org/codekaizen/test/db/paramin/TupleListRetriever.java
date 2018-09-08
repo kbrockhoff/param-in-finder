@@ -17,8 +17,8 @@ package org.codekaizen.test.db.paramin;
 
 import com.linkedin.java.util.concurrent.Flow;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -31,23 +31,18 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkArgument;
  *
  * @author kbrockhoff
  */
-public class TupleListRetriever implements Future<List<Tuple>>, Flow.Subscriber<Tuple> {
+public class TupleListRetriever implements Future<Set<Tuple>>, Flow.Subscriber<Tuple> {
 
     private final int size;
-    private final List<Tuple> results;
+    private final Set<Tuple> results;
     private Flow.Subscription subscription;
     private boolean done;
     private boolean cancelled;
-    private Throwable lastError;
 
     public TupleListRetriever(int size) {
         checkArgument(size > 0, "size must be greater than zero");
         this.size = size;
-        this.results = new ArrayList<>(size);
-    }
-
-    public Throwable getLastError() {
-        return lastError;
+        this.results = new LinkedHashSet<>(size);
     }
 
     @Override
@@ -69,8 +64,8 @@ public class TupleListRetriever implements Future<List<Tuple>>, Flow.Subscriber<
 
     @Override
     public void onError(Throwable throwable) {
-        lastError = throwable;
         done = true;
+        throw new IllegalStateException(throwable);
     }
 
     @Override
@@ -96,12 +91,12 @@ public class TupleListRetriever implements Future<List<Tuple>>, Flow.Subscriber<
     }
 
     @Override
-    public List<Tuple> get() throws InterruptedException, ExecutionException {
+    public Set<Tuple> get() throws InterruptedException, ExecutionException {
         return results;
     }
 
     @Override
-    public List<Tuple> get(long timeout, TimeUnit unit)
+    public Set<Tuple> get(long timeout, TimeUnit unit)
             throws InterruptedException, ExecutionException, TimeoutException {
         return results;
     }
