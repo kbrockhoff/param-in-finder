@@ -19,7 +19,6 @@ import com.linkedin.java.util.concurrent.Flow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -33,8 +32,8 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
  *
  * @author kbrockhoff
  */
-public class SqlQueryProcessor<T extends Comparable<? super T>>
-        implements Flow.Processor<Tuple, Tuple>, Flow.Subscription, Closeable {
+class SqlQueryProcessor<T extends Comparable<? super T>>
+        implements Flow.Processor<Tuple, Tuple>, Flow.Subscription, AutoCloseable {
 
     private Logger logger = LoggerFactory.getLogger(SqlQueryProcessor.class);
     private final ParamSpec<T> paramSpec;
@@ -43,7 +42,7 @@ public class SqlQueryProcessor<T extends Comparable<? super T>>
     private Set<Flow.Subscriber<? super Tuple>> subscribers = new HashSet<>();
     private ResultSet resultSet;
 
-    public SqlQueryProcessor(ParamSpec<T> paramSpec, PreparedStatement statement) {
+    SqlQueryProcessor(ParamSpec<T> paramSpec, PreparedStatement statement) {
         checkNotNull(paramSpec);
         checkNotNull(statement);
         this.paramSpec = paramSpec;
@@ -53,7 +52,7 @@ public class SqlQueryProcessor<T extends Comparable<? super T>>
     @Override
     public void subscribe(Flow.Subscriber<? super Tuple> subscriber) {
         this.subscribers.add(subscriber);
-        subscriber.onSubscribe(this );
+        subscriber.onSubscribe(this);
     }
 
     @Override
@@ -100,14 +99,8 @@ public class SqlQueryProcessor<T extends Comparable<? super T>>
 
     @Override
     public void close() {
-        try {
-            if (resultSet != null) {
-                resultSet.close();
-            }
-            statement.close();
-        } catch (SQLException ignore) {
-            logger.info("exception closing prepared statement: {}", ignore.getMessage());
-        }
+        closeQuietly(resultSet);
+        closeQuietly(statement);
     }
 
     private boolean isInitialProcessor() {
@@ -176,6 +169,16 @@ public class SqlQueryProcessor<T extends Comparable<? super T>>
     private void retrieveResultSetIfNeeded() throws SQLException {
         if (resultSet == null) {
             resultSet = statement.executeQuery();
+        }
+    }
+
+    private void closeQuietly(AutoCloseable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (Exception ignore) {
+                logger.info("exception on close: {}", ignore.getMessage());
+            }
         }
     }
 

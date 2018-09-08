@@ -63,9 +63,6 @@ public class InParameterFinderTest {
     }
 
     public void tearDown() {
-        if (parameterFinder != null) {
-            parameterFinder.close();
-        }
         if (server != null) {
             server.stop();
         }
@@ -79,9 +76,8 @@ public class InParameterFinderTest {
                         new JoinPair("id", "type_id"))
                 .join(ParamSpec.find(String.class).fromTable("owners").inColumn("city").build(),
                         new JoinPair("owner_id", "id"));
-        parameterFinder.setParamSpecs(paramSpecs);
-        int size = 2;
-        Future<Set<Tuple>> future = parameterFinder.findValidParameters(size);
+        int size = 4;
+        Future<Set<Tuple>> future = parameterFinder.findValidParameters(paramSpecs, size);
         Set<Tuple> results = future.get();
         results.forEach(t -> logger.info("{}", t));
         assertEquals(size, results.size());

@@ -17,15 +17,13 @@ package org.codekaizen.test.db.paramin;
 
 import com.linkedin.java.util.concurrent.Flow;
 
-import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.sql.DataSource;
-import java.io.Closeable;
 import java.sql.*;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 
 import static org.codekaizen.test.db.paramin.Preconditions.*;
@@ -37,12 +35,10 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
  * @author kbrockhoff
  */
 @Named("inParameterFinder")
-public class InParameterFinder implements Flow.Publisher<Tuple>, Closeable {
+public class InParameterFinder implements Flow.Publisher<Tuple> {
 
     private final DataSource dataSource;
-    private ParamSpecs paramSpecs;
-    private Connection connection;
-    private LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
+    private ExecutorService executorService;
 
     /**
      * Constructs a finder instance.
@@ -53,69 +49,33 @@ public class InParameterFinder implements Flow.Publisher<Tuple>, Closeable {
     public InParameterFinder(DataSource dataSource) {
         checkNotNull(dataSource, "dataSource is required parameter");
         this.dataSource = dataSource;
+        this.executorService = ForkJoinPool.commonPool();
     }
 
-    public ParamSpecs getParamSpecs() {
-        return paramSpecs;
+    public void setExecutorService(ExecutorService executorService) {
+        checkNotNull(executorService);
+        this.executorService = executorService;
     }
 
-    public void setParamSpecs(ParamSpecs paramSpecs) {
-        checkNotNull(paramSpecs);
-        this.paramSpecs = paramSpecs;
-        close();
-        processors = configureProcessingFlow();
-    }
-
-    public Future<Set<Tuple>> findValidParameters(int size) {
-        TupleListRetriever future = new TupleListRetriever(size);
-        subscribe(future);
-        return future;
+    public Future<Set<Tuple>> findValidParameters(ParamSpecs paramSpecs, int desiredSize) {
+        DefaultTupleSetRetriever retriever = new DefaultTupleSetRetriever(paramSpecs, desiredSize);
+        subscribe(retriever);
+        return executorService.submit(retriever);
     }
 
     @Override
     public void subscribe(Flow.Subscriber<? super Tuple> subscriber) {
-        checkArgument(paramSpecs != null, "paramSpecs must be set first");
-        processors.getLast().subscribe(subscriber);
+        checkArgument(subscriber instanceof TupleSetRetriever, "subscriber must implement TupleSetRetriever");
+        TupleSetRetriever retriever = (TupleSetRetriever) subscriber;
+        retriever.initialize(getConnection());
     }
 
-    @Override
-    @PreDestroy
-    public void close() {
-        processors.forEach(proc -> proc.close());
-        if (connection != null) {
-            try {
-                connection.close();
-            } catch (SQLException ingore) {
-
-            }
-        }
-    }
-
-    private LinkedList<SqlQueryProcessor> configureProcessingFlow() {
-        LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
+    private Connection getConnection() {
         try {
-            SqlQueryProcessor previous = null;
-            for (ParamSpec spec : getParamSpecs().getParamSpecs()) {
-                SqlQueryProcessor proc = new SqlQueryProcessor(spec,
-                        getConnection().prepareStatement(getParamSpecs().getSqlStatement(spec)));
-                processors.add(proc);
-                if (previous != null) {
-                    previous.subscribe(proc);
-                }
-                previous = proc;
-            }
+            return dataSource.getConnection();
         } catch (SQLException cause) {
-            close();
             throw new IllegalStateException(cause);
         }
-        return processors;
-    }
-
-    private Connection getConnection() throws SQLException {
-        if (connection == null || connection.isClosed()) {
-            connection = dataSource.getConnection();
-        }
-        return connection;
     }
 
 }

@@ -15,6 +15,9 @@
  */
 package org.codekaizen.test.db.paramin;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Collection;
 
 /**
@@ -22,7 +25,7 @@ import java.util.Collection;
  *
  * @author kbrockhoff
  */
-public final class Preconditions {
+final class Preconditions {
 
     /**
      * Ensures the truth of a supplied expression.
@@ -111,6 +114,24 @@ public final class Preconditions {
             throw new IllegalArgumentException(String.valueOf(errorMessage));
         } else if (reference instanceof Collection && ((Collection) reference).isEmpty()) {
             throw new IllegalArgumentException(String.valueOf(errorMessage));
+        } else if (reference instanceof Connection) {
+            Connection connection = (Connection) reference;
+            try {
+                if (connection.isClosed()) {
+                    throw new IllegalArgumentException(String.valueOf(errorMessage));
+                }
+            } catch (SQLException cause) {
+                throw new IllegalArgumentException(String.valueOf(errorMessage), cause);
+            }
+        } else if (reference instanceof Statement) {
+            Statement statement = (Statement) reference;
+            try {
+                if (statement.isClosed()) {
+                    throw new IllegalArgumentException(String.valueOf(errorMessage));
+                }
+            } catch (SQLException cause) {
+                throw new IllegalArgumentException(String.valueOf(errorMessage), cause);
+            }
         }
         return reference;
     }
