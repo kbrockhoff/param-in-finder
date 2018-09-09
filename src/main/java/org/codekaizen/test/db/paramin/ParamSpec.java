@@ -25,7 +25,7 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
 
 
 /**
- * Holds the specification (i.e. requirements) for a single database query input parameter.
+ * Holds the specification (requirements) for a single database query input parameter.
  *
  * @author kbrockhoff
  */
