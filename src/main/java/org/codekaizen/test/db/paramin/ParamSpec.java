@@ -261,10 +261,9 @@ public class ParamSpec<T extends Comparable<? super T>> {
 
     @Override
     public String toString() {
-        return "ParamSpec{" +
-                "table='" + table + '\'' +
-                ", column='" + column + '\'' +
-                '}';
+        StringBuilder builder = new StringBuilder();
+        builder.append("ParamSpec for ").append(table).append('.').append(column);
+        return builder.toString();
     }
 
 }

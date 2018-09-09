@@ -37,6 +37,7 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
  */
 public class DefaultFindParametersTask implements FindParametersTask {
 
+    private static final int TRYS_MULTIPLE = 4;
     private final Logger logger = LoggerFactory.getLogger(DefaultFindParametersTask.class);
     private final ParamSpecs paramSpecs;
     private final int desiredSize;
@@ -45,6 +46,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
     private Connection connection;
     private LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
     private boolean initialized = false;
+    private int totalRequests = 0;
     private Flow.Subscription subscription;
 
     /**
@@ -74,12 +76,10 @@ public class DefaultFindParametersTask implements FindParametersTask {
 
     @Override
     public void initialize(Connection connection) throws IllegalStateException {
+        logger.trace("initialize({})", connection);
         checkNotEmpty(connection, "valid connection must be provided");
         close();
         this.connection = connection;
-        processors = configureProcessingFlow(paramSpecs);
-        processors.getLast().subscribe(this);
-        initialized = true;
     }
 
     @Override
@@ -92,6 +92,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
             notify();
             throw new IllegalStateException(interrupted);
         }
+        totalRequests++;
         subscription.request(1L);
     }
 
@@ -99,11 +100,18 @@ public class DefaultFindParametersTask implements FindParametersTask {
     public void onNext(Tuple objects) {
         logger.trace("onNext({})", objects);
         results.add(objects);
-        logger.debug("added {} resulting in results.desiredSize={}", objects, results.size());
+        logger.debug("added {} resulting in results.size={}", objects, results.size());
         if (results.size() >= desiredSize) {
             subscription.cancel();
             cleanupFlow();
+        } else if (totalRequests > desiredSize * TRYS_MULTIPLE) {
+            subscription.cancel();
+            logger.warn("only able to retrieve results.size={} before exhausting the possiblities", results.size());
+            onError(new IllegalStateException(
+                    "unable to retrieve enough valid parameters before hitting request limit of " +
+                            (desiredSize * TRYS_MULTIPLE)));
         } else {
+            totalRequests++;
             subscription.request(1L);
         }
     }
@@ -113,7 +121,13 @@ public class DefaultFindParametersTask implements FindParametersTask {
         logger.trace("onError({})", throwable);
         logger.info("retrieval failed: {}", throwable.getMessage());
         cleanupFlow();
-        throw new IllegalStateException(throwable);
+        if (throwable instanceof Error) {
+            throw (Error) throwable;
+        } else if (throwable instanceof RuntimeException) {
+            throw (RuntimeException) throwable;
+        } else {
+            throw new IllegalStateException(throwable);
+        }
     }
 
     @Override
@@ -125,6 +139,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
     @Override
     public Set<Tuple> call() throws InterruptedException {
         logger.trace("call()");
+        initiateProcessorsAndSubscriptionsIfNeeded();
         checkArgument(initialized, "retriever must be initialized before call");
         semaphore.acquire();
         logger.trace("returning results");
@@ -137,9 +152,18 @@ public class DefaultFindParametersTask implements FindParametersTask {
 
     @Override
     public void close() {
+        logger.trace("close()");
         processors.forEach(this::closeQuietly);
         closeQuietly(connection);
         initialized = false;
+    }
+
+    private void initiateProcessorsAndSubscriptionsIfNeeded() {
+        if (!initialized) {
+            processors = configureProcessingFlow(paramSpecs);
+            processors.getLast().subscribe(this);
+            initialized = true;
+        }
     }
 
     private LinkedList<SqlQueryProcessor> configureProcessingFlow(ParamSpecs specs) {
