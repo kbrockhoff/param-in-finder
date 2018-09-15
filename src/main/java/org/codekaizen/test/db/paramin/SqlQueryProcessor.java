@@ -24,6 +24,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 
@@ -38,16 +39,19 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
     private Logger logger = LoggerFactory.getLogger(SqlQueryProcessor.class);
     private final ParamSpec<T> paramSpec;
     private final PreparedStatement statement;
+    private final ExecutorService executorService;
     private Flow.Subscription subscription;
     private Set<Flow.Subscriber<? super Tuple>> subscribers = new HashSet<>();
     private ResultSet resultSet;
     private final Set<Tuple> alreadySeen = new HashSet<>();
 
-    SqlQueryProcessor(ParamSpec<T> paramSpec, PreparedStatement statement) {
+    SqlQueryProcessor(ParamSpec<T> paramSpec, PreparedStatement statement, ExecutorService executorService) {
         checkNotNull(paramSpec);
         checkNotNull(statement);
+        checkNotNull(executorService);
         this.paramSpec = paramSpec;
         this.statement = statement;
+        this.executorService = executorService;
     }
 
     @Override

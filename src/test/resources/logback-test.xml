@@ -5,7 +5,7 @@
         </encoder>
     </appender>
 
-    <logger name="org.codekaizen.test.db.paramin" level="DEBUG" />
+    <logger name="org.codekaizen.test.db.paramin" level="TRACE" />
 
     <root level="${logLevel:-info}">
         <appender-ref ref="STDOUT" />

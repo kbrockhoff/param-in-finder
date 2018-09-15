@@ -116,7 +116,7 @@ public class FindParametersExecutorTest {
             Set<Tuple> results = future.get();
             fail("should have thrown exception");
         } catch (ExecutionException exception) {
-            // NoOp
+//            assertTrue(exception.getCause() instanceof IllegalStateException);
         }
     }
 

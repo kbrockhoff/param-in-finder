@@ -24,7 +24,11 @@ import java.sql.SQLException;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.codekaizen.test.db.paramin.Preconditions.checkArgument;
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotEmpty;
@@ -38,11 +42,16 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 public class DefaultFindParametersTask implements FindParametersTask {
 
     private static final int TRYS_MULTIPLE = 4;
+    private static final String THREAD_NAME = "sql-query-worker-%d";
+
     private final Logger logger = LoggerFactory.getLogger(DefaultFindParametersTask.class);
     private final ParamSpecs paramSpecs;
     private final int desiredSize;
     private final Set<Tuple> results;
     private final Semaphore semaphore;
+    private final ThreadFactory backingThreadFactory;
+    private final AtomicLong threadCounter;
+    private final ExecutorService executorService;
     private Connection connection;
     private LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
     private boolean initialized = false;
@@ -62,6 +71,10 @@ public class DefaultFindParametersTask implements FindParametersTask {
         this.desiredSize = desiredSize;
         this.results = new LinkedHashSet<>(desiredSize);
         this.semaphore = new Semaphore(1);
+        this.backingThreadFactory = Executors.defaultThreadFactory();
+        this.threadCounter = new AtomicLong(0l);
+        this.executorService = Executors.newFixedThreadPool(paramSpecs.getParamSpecs().size(),
+                r -> constructSubscriberThread(r));
     }
 
     @Override
@@ -173,7 +186,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
             Connection conn = getConnection();
             for (ParamSpec spec : specs.getParamSpecs()) {
                 SqlQueryProcessor proc = new SqlQueryProcessor(spec,
-                        conn.prepareStatement(specs.getSqlStatement(spec)));
+                        conn.prepareStatement(specs.getSqlStatement(spec)), executorService);
                 processors.add(proc);
                 if (previous != null) {
                     previous.subscribe(proc);
@@ -204,6 +217,12 @@ public class DefaultFindParametersTask implements FindParametersTask {
                 logger.info("exception on close: {}", ignore.getMessage());
             }
         }
+    }
+
+    private Thread constructSubscriberThread(Runnable runnable) {
+        Thread thread = backingThreadFactory.newThread(runnable);
+        thread.setName(String.format(THREAD_NAME, threadCounter.getAndIncrement()));
+        return thread;
     }
 
 }
