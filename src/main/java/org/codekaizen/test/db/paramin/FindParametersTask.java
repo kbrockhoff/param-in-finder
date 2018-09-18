@@ -15,7 +15,7 @@
  */
 package org.codekaizen.test.db.paramin;
 
-import com.linkedin.java.util.concurrent.Flow;
+import org.reactivestreams.Subscriber;
 
 import java.sql.Connection;
 import java.util.Set;
@@ -26,7 +26,7 @@ import java.util.concurrent.Callable;
  *
  * @author kbrockhoff
  */
-public interface FindParametersTask extends Callable<Set<Tuple>>, AutoCloseable, Flow.Subscriber<Tuple> {
+public interface FindParametersTask extends Callable<Set<Tuple>>, AutoCloseable, Subscriber<Tuple> {
 
     /**
      * Returns the contained parameter specifications.

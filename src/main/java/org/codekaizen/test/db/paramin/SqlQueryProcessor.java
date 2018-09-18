@@ -15,7 +15,9 @@
  */
 package org.codekaizen.test.db.paramin;
 
-import com.linkedin.java.util.concurrent.Flow;
+import org.reactivestreams.Processor;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,14 +36,14 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
  * @author kbrockhoff
  */
 class SqlQueryProcessor<T extends Comparable<? super T>>
-        implements Flow.Processor<Tuple, Tuple>, Flow.Subscription, AutoCloseable {
+        implements Processor<Tuple, Tuple>, Subscription, AutoCloseable {
 
     private Logger logger = LoggerFactory.getLogger(SqlQueryProcessor.class);
     private final ParamSpec<T> paramSpec;
     private final PreparedStatement statement;
     private final ExecutorService executorService;
-    private Flow.Subscription subscription;
-    private Set<Flow.Subscriber<? super Tuple>> subscribers = new HashSet<>();
+    private Subscription subscription;
+    private Set<Subscriber<? super Tuple>> subscribers = new HashSet<>();
     private ResultSet resultSet;
     private final Set<Tuple> alreadySeen = new HashSet<>();
 
@@ -55,14 +57,14 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
     }
 
     @Override
-    public void subscribe(Flow.Subscriber<? super Tuple> subscriber) {
+    public void subscribe(Subscriber<? super Tuple> subscriber) {
         logger.trace("subscribe({})", subscriber);
         this.subscribers.add(subscriber);
         subscriber.onSubscribe(this);
     }
 
     @Override
-    public void onSubscribe(Flow.Subscription subscription) {
+    public void onSubscribe(Subscription subscription) {
         logger.trace("onSubscribe({})", subscription);
         this.subscription = subscription;
     }

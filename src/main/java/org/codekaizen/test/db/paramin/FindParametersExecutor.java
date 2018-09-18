@@ -15,7 +15,8 @@
  */
 package org.codekaizen.test.db.paramin;
 
-import com.linkedin.java.util.concurrent.Flow;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -35,7 +36,7 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
  * @author kbrockhoff
  */
 @Named("findParametersExecutor")
-public class FindParametersExecutor implements Flow.Publisher<Tuple> {
+public class FindParametersExecutor implements Publisher<Tuple> {
 
     private final DataSource dataSource;
     private ExecutorService executorService;
@@ -81,7 +82,7 @@ public class FindParametersExecutor implements Flow.Publisher<Tuple> {
      * @param subscriber must implement {@link FindParametersTask}
      */
     @Override
-    public void subscribe(Flow.Subscriber<? super Tuple> subscriber) {
+    public void subscribe(Subscriber<? super Tuple> subscriber) {
         checkArgument(subscriber instanceof FindParametersTask, "subscriber must implement FindParametersTask");
         FindParametersTask task = (FindParametersTask) subscriber;
         task.initialize(getConnection());

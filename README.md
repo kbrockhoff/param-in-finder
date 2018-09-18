@@ -10,10 +10,9 @@ particularly useful for performance testing of large databases because a large
 set of different input parameters representative of actual load patterns can
 be retrieved during test setup.
 
-It requires at least Java 8. It uses a reactive streams design but uses
-a LinkedIn-sourced library which backports the Java 9 Flow API into its
-own package thereby avoiding clashes with the JDK equivalents. This library
-will switch to the JDK-provided API once the majority of development
+It requires at least Java 8. It uses a reactive streams design using the
+Reactive Streams interfaces which the Java 9 Flow API is derived from. This
+library will switch to the JDK-provided API once the majority of development
 organizations migrate to Java 9 or higher. The only other dependencies are
 the SLF4J API and the `javax.inject` package. Therefore the library can be
 introduced without introducing classpath conflicts.

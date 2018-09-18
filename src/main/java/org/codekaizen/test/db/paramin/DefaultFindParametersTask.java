@@ -15,7 +15,7 @@
  */
 package org.codekaizen.test.db.paramin;
 
-import com.linkedin.java.util.concurrent.Flow;
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +56,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
     private LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
     private boolean initialized = false;
     private int totalRequests = 0;
-    private Flow.Subscription subscription;
+    private Subscription subscription;
 
     /**
      * Constructs a retriever.
@@ -96,7 +96,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
     }
 
     @Override
-    public void onSubscribe(Flow.Subscription subscription) {
+    public void onSubscribe(Subscription subscription) {
         logger.trace("onSubscribe({})", subscription);
         this.subscription = subscription;
         try {

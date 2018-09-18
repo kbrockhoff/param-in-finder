@@ -54,9 +54,9 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.linkedin.pegasus</groupId>
-      <artifactId>li-java9-flow</artifactId>
-      <version>20.0.4</version>
+      <groupId>org.reactivestreams</groupId>
+      <artifactId>reactive-streams</artifactId>
+      <version>1.0.2</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
