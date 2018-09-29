@@ -18,6 +18,7 @@ package org.codekaizen.test.db.paramin;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
+import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.sql.DataSource;
@@ -36,10 +37,12 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
  * @author kbrockhoff
  */
 @Named("findParametersExecutor")
-public class FindParametersExecutor implements Publisher<Tuple> {
+public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
 
     private final DataSource dataSource;
+    private EventBusImpl eventBus;
     private ExecutorService executorService;
+    private boolean usingInternalExecutor;
 
     /**
      * Constructs a finder instance.
@@ -50,7 +53,10 @@ public class FindParametersExecutor implements Publisher<Tuple> {
     public FindParametersExecutor(DataSource dataSource) {
         checkNotNull(dataSource, "dataSource is required parameter");
         this.dataSource = dataSource;
-        this.executorService = ForkJoinPool.commonPool();
+        executorService = ForkJoinPool.commonPool();
+        usingInternalExecutor = true;
+        eventBus = new EventBusImpl();
+        executorService.execute(eventBus);
     }
 
     /**
@@ -61,17 +67,31 @@ public class FindParametersExecutor implements Publisher<Tuple> {
     public void setExecutorService(ExecutorService executorService) {
         checkNotNull(executorService);
         this.executorService = executorService;
+        usingInternalExecutor = false;
+        if (eventBus != null) {
+            eventBus.shutdown();
+        }
+        eventBus = new EventBusImpl();
+        executorService.execute(eventBus);
+    }
+
+    @Override
+    @PreDestroy
+    public void close() {
+        eventBus.shutdown();
+        if (usingInternalExecutor) {
+            executorService.shutdown();
+        }
     }
 
     /**
      * Returns a set of tuples matching the supplied specifications.
      *
      * @param paramSpecs the parameter specifications
-     * @param desiredSize the number of unique parameter combinations desired
      * @return a future which will return the parameter combinations once the retrieval has finished
      */
-    public Future<Set<Tuple>> findValidParameters(ParamSpecs paramSpecs, int desiredSize) {
-        DefaultFindParametersTask task = new DefaultFindParametersTask(paramSpecs, desiredSize);
+    public Future<Set<Tuple>> findValidParameters(ParamSpecs paramSpecs) {
+        DefaultFindParametersTask task = new DefaultFindParametersTask(paramSpecs);
         subscribe(task);
         return executorService.submit(task);
     }
@@ -85,7 +105,7 @@ public class FindParametersExecutor implements Publisher<Tuple> {
     public void subscribe(Subscriber<? super Tuple> subscriber) {
         checkArgument(subscriber instanceof FindParametersTask, "subscriber must implement FindParametersTask");
         FindParametersTask task = (FindParametersTask) subscriber;
-        task.initialize(getConnection());
+        task.initialize(getConnection(), getEventBus());
     }
 
     private Connection getConnection() {
@@ -94,6 +114,10 @@ public class FindParametersExecutor implements Publisher<Tuple> {
         } catch (SQLException cause) {
             throw new IllegalStateException(cause);
         }
+    }
+
+    private EventBus getEventBus() {
+        return eventBus;
     }
 
 }

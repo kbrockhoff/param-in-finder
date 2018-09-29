@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.StringJoiner;
 
 import static org.codekaizen.test.db.paramin.Preconditions.*;
@@ -46,6 +47,7 @@ public class ParamSpecs {
     private String schema;
     private Node first;
     private Node last;
+    private int desiredTuplesSetSize = 1;
 
     private ParamSpecs(ParamSpec firstSpec) {
         checkNotNull(firstSpec);
@@ -84,9 +86,32 @@ public class ParamSpecs {
      * Sets the default database schema name.
      *
      * @param schema the schema name or <code>null</code>
+     * @return this object
      */
-    public void setSchema(String schema) {
+    public ParamSpecs inSchema(String schema) {
         this.schema = emptyToNull(schema);
+        return this;
+    }
+
+    /**
+     * Returns the number of unique parameter value combinations desired.
+     *
+     * @return the requested parameter value tuple set size
+     */
+    public int getDesiredTuplesSetSize() {
+        return desiredTuplesSetSize;
+    }
+
+    /**
+     * Sets the number of unique parameter value combinations desired.
+     *
+     * @param desiredTuplesSetSize the requested parameter value tuple set size
+     * @return this object
+     */
+    public ParamSpecs retrieveTuplesSetOfSize(int desiredTuplesSetSize) {
+        checkArgument(desiredTuplesSetSize > 0, "desiredTuplesSetSize must be greater than zero");
+        this.desiredTuplesSetSize = desiredTuplesSetSize;
+        return this;
     }
 
     /**
@@ -153,6 +178,26 @@ public class ParamSpecs {
         String sql = builder.toString();
         logger.debug("constructed: {}", sql);
         return sql;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getSchema(), getParamSpecs(), getDesiredTuplesSetSize());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ParamSpecs that = (ParamSpecs) o;
+        return getDesiredTuplesSetSize() == that.getDesiredTuplesSetSize() &&
+                Objects.equals(getSchema(), that.getSchema()) &&
+                Objects.equals(getParamSpecs(), that.getParamSpecs());
+    }
+
+    @Override
+    public String toString() {
+        return "ParamSpecs: " + getParamSpecs();
     }
 
     private String constructTableName(ParamSpec spec) {

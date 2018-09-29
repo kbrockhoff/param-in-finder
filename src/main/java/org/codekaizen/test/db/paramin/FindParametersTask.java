@@ -26,7 +26,7 @@ import java.util.concurrent.Callable;
  *
  * @author kbrockhoff
  */
-public interface FindParametersTask extends Callable<Set<Tuple>>, AutoCloseable, Subscriber<Tuple> {
+public interface FindParametersTask extends Callable<Set<Tuple>>, AutoCloseable, Component, Subscriber<Tuple> {
 
     /**
      * Returns the contained parameter specifications.
@@ -36,19 +36,13 @@ public interface FindParametersTask extends Callable<Set<Tuple>>, AutoCloseable,
     ParamSpecs getParamSpecs();
 
     /**
-     * Returns the desired size of the parameter tuple set.
-     *
-     * @return the size
-     */
-    int getDesiredSize();
-
-    /**
      * Initializes the reactive stream based retrieval flow task.
      *
      * @param connection the database connection to use in querying for data
+     * @param eventBus the inter-component event bus
      * @throws IllegalStateException if unable to prepare the queries
      */
-    void initialize(Connection connection) throws IllegalStateException;
+    void initialize(Connection connection, EventBus eventBus) throws IllegalStateException;
 
     /**
      * Returns the retrieved set of tuples once the task has been completed. It will block until the

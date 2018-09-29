@@ -39,7 +39,7 @@ public class ParamSpecsTest {
         ParamSpecs specs = ParamSpecs.create(
                 ParamSpec.find(String.class).inColumn("user_id").fromTable("users")
                         .where(new Condition("status", Operator.EQUALS, "ACTIVE")).build());
-        specs.setSchema("public");
+        specs.inSchema("public");
         List<ParamSpec<?>> results = specs.getParamSpecs();
         logger.info("{}", results);
         assertEquals(1, results.size());
@@ -59,7 +59,7 @@ public class ParamSpecsTest {
     public void shouldCreateSpecsWithSingleSpecWithNoWhereClause() {
         ParamSpecs specs = ParamSpecs.create(
                 ParamSpec.find(String.class).inColumn("user_id").fromTable("users").build());
-        specs.setSchema("public");
+        specs.inSchema("public");
         List<ParamSpec<?>> results = specs.getParamSpecs();
         logger.info("{}", results);
         assertEquals(1, results.size());
@@ -104,6 +104,19 @@ public class ParamSpecsTest {
             index++;
         }
         assertEquals(3, statements.size());
+    }
+
+    @Test
+    public void shouldStoreDesiredTuplesSetSize() {
+        int desiredTuplesSetSize = 8;
+        String schema = "idm";
+        ParamSpecs specs = ParamSpecs.create(
+                ParamSpec.find(String.class).inColumn("user_id").fromTable("users")
+                        .where(new Condition("status", Operator.EQUALS, "ACTIVE")).build())
+                        .retrieveTuplesSetOfSize(desiredTuplesSetSize)
+                        .inSchema(schema);
+        assertEquals(desiredTuplesSetSize, specs.getDesiredTuplesSetSize());
+        assertEquals(schema, specs.getSchema());
     }
 
 }

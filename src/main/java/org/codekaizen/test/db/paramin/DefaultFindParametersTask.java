@@ -24,11 +24,8 @@ import java.sql.SQLException;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.UUID;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.codekaizen.test.db.paramin.Preconditions.checkArgument;
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotEmpty;
@@ -42,39 +39,37 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 public class DefaultFindParametersTask implements FindParametersTask {
 
     private static final int TRYS_MULTIPLE = 4;
-    private static final String THREAD_NAME = "sql-query-worker-%d";
 
     private final Logger logger = LoggerFactory.getLogger(DefaultFindParametersTask.class);
+    private final String componentId;
     private final ParamSpecs paramSpecs;
-    private final int desiredSize;
     private final Set<Tuple> results;
     private final Semaphore semaphore;
-    private final ThreadFactory backingThreadFactory;
-    private final AtomicLong threadCounter;
-    private final ExecutorService executorService;
     private Connection connection;
+    private EventBus eventBus;
     private LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
     private boolean initialized = false;
     private int totalRequests = 0;
     private Subscription subscription;
+    private boolean cancelled = false;
+    private Throwable onErrorCause;
 
     /**
      * Constructs a retriever.
      *
      * @param paramSpecs  the specifications on what to retrieve
-     * @param desiredSize the number of distinct parameter combinations
      */
-    public DefaultFindParametersTask(ParamSpecs paramSpecs, int desiredSize) {
+    public DefaultFindParametersTask(ParamSpecs paramSpecs) {
         checkNotNull(paramSpecs, "paramSpecs is required");
-        checkArgument(desiredSize > 0, "desiredSize must be greater than zero");
+        this.componentId = UUID.randomUUID().toString();
         this.paramSpecs = paramSpecs;
-        this.desiredSize = desiredSize;
-        this.results = new LinkedHashSet<>(desiredSize);
+        this.results = new LinkedHashSet<>(paramSpecs.getDesiredTuplesSetSize());
         this.semaphore = new Semaphore(1);
-        this.backingThreadFactory = Executors.defaultThreadFactory();
-        this.threadCounter = new AtomicLong(0l);
-        this.executorService = Executors.newFixedThreadPool(paramSpecs.getParamSpecs().size(),
-                r -> constructSubscriberThread(r));
+    }
+
+    @Override
+    public String getComponentId() {
+        return componentId;
     }
 
     @Override
@@ -83,49 +78,46 @@ public class DefaultFindParametersTask implements FindParametersTask {
     }
 
     @Override
-    public int getDesiredSize() {
-        return desiredSize;
-    }
-
-    @Override
-    public void initialize(Connection connection) throws IllegalStateException {
+    public void initialize(Connection connection, EventBus eventBus) throws IllegalStateException {
         logger.trace("initialize({})", connection);
         checkNotEmpty(connection, "valid connection must be provided");
+        checkNotNull(eventBus, "eventBus must be provided");
         close();
         this.connection = connection;
+        this.eventBus = eventBus;
+        this.eventBus.registerReceiver(this);
     }
 
     @Override
     public void onSubscribe(Subscription subscription) {
         logger.trace("onSubscribe({})", subscription);
-        this.subscription = subscription;
-        try {
-            semaphore.acquire();
-        } catch (InterruptedException interrupted) {
-            notify();
-            throw new IllegalStateException(interrupted);
+        checkNotNull(subscription);
+        if (this.subscription != null || cancelled) {
+            logger.warn("duplicate subscription received, per reactive streams rule 2.5 calling cancel");
+            subscription.cancel();
+            return;
         }
-        totalRequests++;
-        subscription.request(1L);
+        this.subscription = subscription;
+        doRequest();
     }
 
     @Override
-    public void onNext(Tuple objects) {
-        logger.trace("onNext({})", objects);
-        results.add(objects);
-        logger.debug("added {} resulting in results.size={}", objects, results.size());
-        if (results.size() >= desiredSize) {
+    public void onNext(Tuple item) {
+        logger.trace("onNext({})", item);
+        checkNotNull(item, "reactive streams rule 2.13 requires throwing of null pointer");
+        results.add(item);
+        logger.debug("added {} resulting in results.size={}", item, results.size());
+        if (results.size() >= paramSpecs.getDesiredTuplesSetSize()) {
             subscription.cancel();
             cleanupFlow();
-        } else if (totalRequests > desiredSize * TRYS_MULTIPLE) {
+        } else if (totalRequests > paramSpecs.getDesiredTuplesSetSize() * TRYS_MULTIPLE) {
             subscription.cancel();
             logger.warn("only able to retrieve results.size={} before exhausting the possiblities", results.size());
             onError(new IllegalStateException(
                     "unable to retrieve enough valid parameters before hitting request limit of " +
-                            (desiredSize * TRYS_MULTIPLE)));
+                            (paramSpecs.getDesiredTuplesSetSize() * TRYS_MULTIPLE)));
         } else {
-            totalRequests++;
-            subscription.request(1L);
+            doRequest();
         }
     }
 
@@ -133,14 +125,8 @@ public class DefaultFindParametersTask implements FindParametersTask {
     public void onError(Throwable throwable) {
         logger.trace("onError({})", throwable);
         logger.info("retrieval failed: {}", throwable.getMessage());
+        onErrorCause = throwable;
         cleanupFlow();
-        if (throwable instanceof Error) {
-            throw (Error) throwable;
-        } else if (throwable instanceof RuntimeException) {
-            throw (RuntimeException) throwable;
-        } else {
-            throw new IllegalStateException(throwable);
-        }
     }
 
     @Override
@@ -152,12 +138,26 @@ public class DefaultFindParametersTask implements FindParametersTask {
     @Override
     public Set<Tuple> call() throws InterruptedException {
         logger.trace("call()");
+        if (cancelled) {
+            logger.info("subscription already cancelled so returning existing results");
+            return results;
+        }
         initiateProcessorsAndSubscriptionsIfNeeded();
         checkArgument(initialized, "retriever must be initialized before call");
         semaphore.acquire();
         logger.trace("returning results");
         try {
-            return results;
+            if (onErrorCause == null) {
+                return results;
+            } else {
+                if (onErrorCause instanceof Error) {
+                    throw (Error) onErrorCause;
+                } else if (onErrorCause instanceof RuntimeException) {
+                    throw (RuntimeException) onErrorCause;
+                } else {
+                    throw new IllegalStateException(onErrorCause);
+                }
+            }
         } finally {
             semaphore.release();
         }
@@ -167,8 +167,15 @@ public class DefaultFindParametersTask implements FindParametersTask {
     public void close() {
         logger.trace("close()");
         processors.forEach(this::closeQuietly);
+        if (eventBus != null) {
+            eventBus.unregisterReceiver(this);
+        }
         closeQuietly(connection);
-        initialized = false;
+    }
+
+    @Override
+    public String toString() {
+        return FindParametersTask.class.getSimpleName() + " for " + paramSpecs;
     }
 
     private void initiateProcessorsAndSubscriptionsIfNeeded() {
@@ -176,6 +183,12 @@ public class DefaultFindParametersTask implements FindParametersTask {
             processors = configureProcessingFlow(paramSpecs);
             processors.getLast().subscribe(this);
             initialized = true;
+            try {
+                semaphore.acquire();
+            } catch (InterruptedException interrupted) {
+                notify();
+                throw new IllegalStateException(interrupted);
+            }
         }
     }
 
@@ -185,8 +198,8 @@ public class DefaultFindParametersTask implements FindParametersTask {
             SqlQueryProcessor previous = null;
             Connection conn = getConnection();
             for (ParamSpec spec : specs.getParamSpecs()) {
-                SqlQueryProcessor proc = new SqlQueryProcessor(spec,
-                        conn.prepareStatement(specs.getSqlStatement(spec)), executorService);
+                SqlQueryProcessor proc = new SqlQueryProcessor(spec, specs.getDesiredTuplesSetSize(),
+                        conn.prepareStatement(specs.getSqlStatement(spec)), eventBus);
                 processors.add(proc);
                 if (previous != null) {
                     previous.subscribe(proc);
@@ -204,7 +217,13 @@ public class DefaultFindParametersTask implements FindParametersTask {
         return connection;
     }
 
+    private void doRequest() {
+        totalRequests++;
+        subscription.request(1L);
+    }
+
     private void cleanupFlow() {
+        cancelled = true;
         semaphore.release();
         close();
     }
@@ -217,12 +236,6 @@ public class DefaultFindParametersTask implements FindParametersTask {
                 logger.info("exception on close: {}", ignore.getMessage());
             }
         }
-    }
-
-    private Thread constructSubscriberThread(Runnable runnable) {
-        Thread thread = backingThreadFactory.newThread(runnable);
-        thread.setName(String.format(THREAD_NAME, threadCounter.getAndIncrement()));
-        return thread;
     }
 
 }

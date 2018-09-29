@@ -65,6 +65,9 @@ public class FindParametersExecutorTest {
     }
 
     public void tearDown() {
+        if (findParametersExecutor != null) {
+            findParametersExecutor.close();
+        }
         if (server != null) {
             server.stop();
         }
@@ -72,9 +75,10 @@ public class FindParametersExecutorTest {
 
     @Test
     public void shouldFindValidParametersInSingleTable() throws Exception {
-        ParamSpecs paramSpecs = create(find(String.class).fromTable("specialties").inColumn("name").build());
         int size = 2;
-        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs, size);
+        ParamSpecs paramSpecs = create(find(String.class).fromTable("specialties").inColumn("name").build())
+                .retrieveTuplesSetOfSize(size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
         Set<Tuple> results = future.get();
         results.forEach(t -> logger.info("{}", t));
         assertEquals(size, results.size());
@@ -82,11 +86,12 @@ public class FindParametersExecutorTest {
 
     @Test
     public void shouldFindValidParametersAcrossJoinedTables() throws Exception {
+        int size = 12;
         ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name").build())
                 .join(find(String.class).fromTable("pets").inColumn("id").build(), new JoinPair("id", "type_id"))
-                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"));
-        int size = 12;
-        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs, size);
+                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"))
+                .retrieveTuplesSetOfSize(size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
         Set<Tuple> results = future.get();
         results.forEach(t -> logger.info("{}", t));
         assertEquals(size, results.size());
@@ -94,9 +99,10 @@ public class FindParametersExecutorTest {
 
     @Test
     public void shouldFindAsManyValidParametersAsPossibleOnSingleTableBeforeThrowingException() throws Exception {
-        ParamSpecs paramSpecs = create(find(String.class).fromTable("specialties").inColumn("name").build());
         int size = 4;
-        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs, size);
+        ParamSpecs paramSpecs = create(find(String.class).fromTable("specialties").inColumn("name").build())
+                .retrieveTuplesSetOfSize(size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
         try {
             Set<Tuple> results = future.get();
             fail("should have thrown exception");
@@ -107,28 +113,30 @@ public class FindParametersExecutorTest {
 
     @Test
     public void shouldFindValidParametersOnJoinedTablesBeforeThrowingException() throws Exception {
+        int size = 16;
         ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name").build())
                 .join(find(String.class).fromTable("pets").inColumn("id").build(), new JoinPair("id", "type_id"))
-                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"));
-        int size = 16;
-        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs, size);
+                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"))
+                .retrieveTuplesSetOfSize(size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
         try {
             Set<Tuple> results = future.get();
             fail("should have thrown exception");
         } catch (ExecutionException exception) {
-            //assertTrue(exception.getCause() instanceof IllegalStateException);
+            assertTrue(exception.getCause() instanceof IllegalStateException);
         }
     }
 
     @Test
     public void shouldFindValidParametersWithSameFirstParameterValue() throws Exception {
+        int size = 4;
         String petType = "dog";
         ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name")
                 .where(new Condition("name", Operator.EQUALS, petType)).build())
                 .join(find(String.class).fromTable("pets").inColumn("id").build(), new JoinPair("id", "type_id"))
-                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"));
-        int size = 4;
-        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs, size);
+                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"))
+                .retrieveTuplesSetOfSize(size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
         Set<Tuple> results = future.get();
         results.forEach(t -> logger.info("{}", t));
         assertEquals(size, results.size());

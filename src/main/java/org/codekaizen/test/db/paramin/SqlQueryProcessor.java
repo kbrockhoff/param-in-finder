@@ -25,8 +25,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.UUID;
 
 import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 
@@ -36,59 +37,78 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
  * @author kbrockhoff
  */
 class SqlQueryProcessor<T extends Comparable<? super T>>
-        implements Processor<Tuple, Tuple>, Subscription, AutoCloseable {
+        implements Component, Processor<Tuple, Tuple>, Subscription, AutoCloseable {
+
+    private static final int TRYS_MULTIPLE = 4;
 
     private Logger logger = LoggerFactory.getLogger(SqlQueryProcessor.class);
+    private final String componentId;
     private final ParamSpec<T> paramSpec;
+    private final int batchSize;
     private final PreparedStatement statement;
-    private final ExecutorService executorService;
+    private final EventBus eventBus;
     private Subscription subscription;
-    private Set<Subscriber<? super Tuple>> subscribers = new HashSet<>();
     private ResultSet resultSet;
     private final Set<Tuple> alreadySeen = new HashSet<>();
+    private int totalRequests = 0;
 
-    SqlQueryProcessor(ParamSpec<T> paramSpec, PreparedStatement statement, ExecutorService executorService) {
+    SqlQueryProcessor(ParamSpec<T> paramSpec, int batchSize, PreparedStatement statement, EventBus eventBus) {
         checkNotNull(paramSpec);
         checkNotNull(statement);
-        checkNotNull(executorService);
+        checkNotNull(eventBus);
+        this.componentId = UUID.randomUUID().toString();
         this.paramSpec = paramSpec;
+        this.batchSize = batchSize;
         this.statement = statement;
-        this.executorService = executorService;
+        this.eventBus = eventBus;
+        eventBus.registerReceiver(this);
+    }
+
+    @Override
+    public String getComponentId() {
+        return componentId;
     }
 
     @Override
     public void subscribe(Subscriber<? super Tuple> subscriber) {
         logger.trace("subscribe({})", subscriber);
-        this.subscribers.add(subscriber);
-        subscriber.onSubscribe(this);
+        SubscriptionImpl sub = new SubscriptionImpl(subscriber, eventBus);
+        eventBus.publish(new OnSubscribeEvent(getComponentId(), sub));
     }
 
     @Override
     public void onSubscribe(Subscription subscription) {
         logger.trace("onSubscribe({})", subscription);
+        checkNotNull(subscription);
+        if (this.subscription != null) {
+            logger.warn("duplicate subscription received, per rule 2.5 calling cancel");
+            subscription.cancel();
+            return;
+        }
         this.subscription = subscription;
     }
 
     @Override
-    public void onNext(Tuple objects) {
-        logger.trace("onNext({})", objects);
-        if (objects.containsNullValue()) {
-            subscription.request(1L);
+    public void onNext(Tuple item) {
+        logger.trace("onNext({})", item);
+        checkNotNull(item, "rule 2.13 requires throwing of null pointer");
+        if (item.containsNullValue()) {
+            doRequest(1l);
             return;
         }
-        queryDatabaseForValues(objects);
+        queryDatabaseForValues(item);
     }
 
     @Override
     public void onError(Throwable throwable) {
         logger.trace("onError({})", throwable);
-        subscribers.forEach(s -> s.onError(throwable));
+        eventBus.publish(new OnErrorEvent(getComponentId(), throwable));
     }
 
     @Override
     public void onComplete() {
         logger.trace("onComplete()");
-        subscribers.forEach(s -> s.onComplete());
+        eventBus.publish(new OnCompleteEvent(getComponentId()));
     }
 
     @Override
@@ -99,7 +119,7 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
                 queryDatabaseForValues(Tuple.EMPTY_TUPLE);
             }
         } else {
-            subscription.request(l);
+            doRequest(l);
         }
     }
 
@@ -115,12 +135,29 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
     public void close() {
         logger.trace("close()");
         alreadySeen.clear();
+        eventBus.unregisterReceiver(this);
         closeQuietly(resultSet);
         closeQuietly(statement);
     }
 
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + " for " + paramSpec;
+    }
+
     private boolean isInitialProcessor() {
         return subscription == null;
+    }
+
+    private Iterator<Tuple> createIterator() {
+        if (isInitialProcessor()) {
+            for (int i = 0; i < (int) 4; i++) {
+                queryDatabaseForValues(Tuple.EMPTY_TUPLE);
+            }
+        } else {
+            doRequest(1l);
+        }
+        return null;
     }
 
     private String getProcessorName() {
@@ -129,69 +166,69 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
         return builder.toString();
     }
 
-    private void queryDatabaseForValues(Tuple objects) {
+    private void queryDatabaseForValues(Tuple item) {
         try {
             if (isInitialProcessor()) {
-                queryWithNoParameters(objects);
+                queryWithNoParameters(item);
             } else {
-                queryBasedOnReceivedTuple(objects);
+                queryBasedOnReceivedTuple(item);
             }
         } catch (SQLException cause) {
             logger.warn("{} query failed: {}", getProcessorName(), cause.getMessage());
-            subscribers.forEach(s -> s.onError(cause));
+            terminateDueTo(cause);
         }
     }
 
-    private void queryWithNoParameters(Tuple objects) throws SQLException {
+    private void queryWithNoParameters(Tuple item) throws SQLException {
         retrieveResultSetIfNeeded();
         Set<T> seenThisLoop = new HashSet<>();
-        if (loopThruResultSet(objects, seenThisLoop)) {
+        if (loopThruResultSet(item, seenThisLoop)) {
             return;
         }
         closeQuietly(resultSet);
         retrieveResultSetIfNeeded();
-        loopThruResultSet(objects, seenThisLoop);
+        loopThruResultSet(item, seenThisLoop);
     }
 
-    private boolean loopThruResultSet(Tuple objects, Set<T> seenThisLoop) throws SQLException {
+    private boolean loopThruResultSet(Tuple item, Set<T> seenThisLoop) throws SQLException {
         while (resultSet.next()) {
             T value = retrieveValue(resultSet);
             if (seenThisLoop.contains(value)) {
                 logger.warn("{} no acceptable values are available", getProcessorName());
                 IllegalStateException cause = new IllegalStateException("no acceptable values are available");
-                subscribers.forEach(s -> s.onError(cause));
+                terminateDueTo(cause);
                 return true;
             }
             seenThisLoop.add(value);
             if (paramSpec.isAcceptableValue(value)) {
-                Tuple result = objects.addElement(paramSpec.getColumn(), value);
-                subscribers.forEach(s -> s.onNext(result));
+                Tuple result = item.addElement(paramSpec.getColumn(), value);
+                eventBus.publish(new OnNextEvent(getComponentId(), result));
                 return true;
             }
         }
         return false;
     }
 
-    private void queryBasedOnReceivedTuple(Tuple objects) throws SQLException {
-        objects.populateStatementParameters(statement);
+    private void queryBasedOnReceivedTuple(Tuple item) throws SQLException {
+        item.populateStatementParameters(statement);
         try (ResultSet rs = statement.executeQuery()) {
             while (rs.next()) {
                 T value = retrieveValue(rs);
                 if (paramSpec.isAcceptableValue(value)) {
-                    Tuple result = objects.addElement(paramSpec.getColumn(), value);
+                    Tuple result = item.addElement(paramSpec.getColumn(), value);
                     if (alreadySeen.contains(result)) {
                         logger.debug("already seen {}", result);
                         continue;
                     }
                     alreadySeen.add(result);
-                    subscribers.forEach(s -> s.onNext(result));
+                    eventBus.publish(new OnNextEvent(getComponentId(), result));
                     return;
                 }
             }
         }
         logger.debug("{} unable to find acceptable value to addElement to {}, requesting another tuple",
-                getProcessorName(), objects);
-        subscription.request(1L);
+                getProcessorName(), item);
+        doRequest(1l);
     }
 
     private T retrieveValue(ResultSet rs) throws SQLException {
@@ -227,6 +264,22 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
             logger.debug("executing query to retrieve result set for {}", paramSpec);
             resultSet = statement.executeQuery();
         }
+    }
+
+    private void doRequest(long l) {
+        if (totalRequests >= batchSize * TRYS_MULTIPLE) {
+            terminateDueTo(new IllegalStateException(
+                    "unable to retrieve enough valid parameters before hitting request limit of " +
+                            (batchSize * TRYS_MULTIPLE)));
+        }
+        else {
+            totalRequests += l;
+            subscription.request(l);
+        }
+    }
+
+    private void terminateDueTo(Throwable throwable) {
+        eventBus.publish(new OnErrorEvent(getComponentId(), throwable));
     }
 
     private void closeQuietly(AutoCloseable closeable) {
