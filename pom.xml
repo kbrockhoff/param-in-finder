@@ -130,6 +130,9 @@
         <plugin>
           <artifactId>maven-javadoc-plugin</artifactId>
           <version>3.0.1</version>
+          <configuration>
+            <additionalOptions>-source 8 -html5</additionalOptions>
+          </configuration>
         </plugin>
         <plugin>
           <artifactId>maven-source-plugin</artifactId>
