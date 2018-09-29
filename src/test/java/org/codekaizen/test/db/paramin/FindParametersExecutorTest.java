@@ -17,6 +17,7 @@ package org.codekaizen.test.db.paramin;
 
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.tools.Server;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -64,6 +65,7 @@ public class FindParametersExecutorTest {
         findParametersExecutor = new FindParametersExecutor(dataSource);
     }
 
+    @After
     public void tearDown() {
         if (findParametersExecutor != null) {
             findParametersExecutor.close();
@@ -141,6 +143,18 @@ public class FindParametersExecutorTest {
         results.forEach(t -> logger.info("{}", t));
         assertEquals(size, results.size());
         results.forEach(t -> assertEquals(petType, t.getValue(0)));
+    }
+
+    @Test
+    public void shouldMultipleCallsToTheFindParametersExecutor() throws Exception {
+        int size = 2;
+        ParamSpecs paramSpecs = create(find(String.class).fromTable("specialties").inColumn("name").build())
+                .retrieveTuplesSetOfSize(size);
+        for (int i = 0; i < 8; i++) {
+            Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
+            Set<Tuple> results = future.get();
+            assertEquals(size, results.size());
+        }
     }
 
     private void createAndLoadDatabase() throws SQLException, IOException {

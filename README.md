@@ -48,6 +48,13 @@ public class ExampleJUnitTest {
         findParametersExecutor = new FindParametersExecutor(dataSource);
     }
 
+    @After
+    public void tearDown() {
+        if (findParametersExecutor != null) {
+            findParametersExecutor.close();
+        }
+    }
+
     @Test
     public void testOfSomeFunctionality() {
         ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name").build())

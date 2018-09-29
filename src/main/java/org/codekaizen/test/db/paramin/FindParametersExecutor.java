@@ -17,6 +17,8 @@ package org.codekaizen.test.db.paramin;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
@@ -24,9 +26,8 @@ import javax.inject.Named;
 import javax.sql.DataSource;
 import java.sql.*;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.codekaizen.test.db.paramin.Preconditions.*;
 
@@ -39,9 +40,17 @@ import static org.codekaizen.test.db.paramin.Preconditions.*;
 @Named("findParametersExecutor")
 public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
 
+    private static final int THREAD_POOL_SIZE = 4;
+    private static final String BUS_THREAD_NAME = "find-params-eventbus";
+    private static final String THREAD_NAME = "find-params-worker-%d";
+
+    private final Logger logger = LoggerFactory.getLogger(FindParametersExecutor.class);
     private final DataSource dataSource;
-    private EventBusImpl eventBus;
+    private final ThreadFactory backingThreadFactory;
+    private final AtomicLong threadCounter;
     private ExecutorService executorService;
+    private final ExecutorService eventBusExecutor;
+    private final EventBusImpl eventBus;
     private boolean usingInternalExecutor;
 
     /**
@@ -51,12 +60,16 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
      */
     @Inject
     public FindParametersExecutor(DataSource dataSource) {
+        logger.trace("FindParametersExecutor({})", dataSource);
         checkNotNull(dataSource, "dataSource is required parameter");
         this.dataSource = dataSource;
-        executorService = ForkJoinPool.commonPool();
+        this.backingThreadFactory = Executors.defaultThreadFactory();
+        this.threadCounter = new AtomicLong(0l);
+        this.executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE, r -> constructWorkerThread(r));
         usingInternalExecutor = true;
+        eventBusExecutor = Executors.newSingleThreadExecutor(r -> constructEventBusThread(r));
         eventBus = new EventBusImpl();
-        executorService.execute(eventBus);
+        eventBusExecutor.execute(eventBus);
     }
 
     /**
@@ -65,20 +78,18 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
      * @param executorService the service
      */
     public void setExecutorService(ExecutorService executorService) {
+        logger.trace("setExecutorService({})", executorService);
         checkNotNull(executorService);
         this.executorService = executorService;
         usingInternalExecutor = false;
-        if (eventBus != null) {
-            eventBus.shutdown();
-        }
-        eventBus = new EventBusImpl();
-        executorService.execute(eventBus);
     }
 
     @Override
     @PreDestroy
     public void close() {
+        logger.trace("close()");
         eventBus.shutdown();
+        eventBusExecutor.shutdown();
         if (usingInternalExecutor) {
             executorService.shutdown();
         }
@@ -91,6 +102,7 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
      * @return a future which will return the parameter combinations once the retrieval has finished
      */
     public Future<Set<Tuple>> findValidParameters(ParamSpecs paramSpecs) {
+        logger.trace("findValidParameters({})", paramSpecs);
         DefaultFindParametersTask task = new DefaultFindParametersTask(paramSpecs);
         subscribe(task);
         return executorService.submit(task);
@@ -103,6 +115,7 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
      */
     @Override
     public void subscribe(Subscriber<? super Tuple> subscriber) {
+        logger.trace("subscribe({})", subscriber);
         checkArgument(subscriber instanceof FindParametersTask, "subscriber must implement FindParametersTask");
         FindParametersTask task = (FindParametersTask) subscriber;
         task.initialize(getConnection(), getEventBus());
@@ -118,6 +131,18 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
 
     private EventBus getEventBus() {
         return eventBus;
+    }
+
+    private Thread constructWorkerThread(Runnable runnable) {
+        Thread thread = backingThreadFactory.newThread(runnable);
+        thread.setName(String.format(THREAD_NAME, threadCounter.getAndIncrement()));
+        return thread;
+    }
+
+    private Thread constructEventBusThread(Runnable runnable) {
+        Thread thread = backingThreadFactory.newThread(runnable);
+        thread.setName(BUS_THREAD_NAME);
+        return thread;
     }
 
 }
