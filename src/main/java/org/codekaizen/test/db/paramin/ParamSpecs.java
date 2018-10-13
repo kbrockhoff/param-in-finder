@@ -48,6 +48,7 @@ public class ParamSpecs {
     private Node first;
     private Node last;
     private int desiredTuplesSetSize = 1;
+    private boolean throwingExceptionIfAvailableSizeLessThanDesiredSize = false;
 
     private ParamSpecs(ParamSpec firstSpec) {
         checkNotNull(firstSpec);
@@ -111,6 +112,26 @@ public class ParamSpecs {
     public ParamSpecs retrieveTuplesSetOfSize(int desiredTuplesSetSize) {
         checkArgument(desiredTuplesSetSize > 0, "desiredTuplesSetSize must be greater than zero");
         this.desiredTuplesSetSize = desiredTuplesSetSize;
+        return this;
+    }
+
+    /**
+     * Returns whether an exception should be thrown if the available tuple set size is less than the desired size.
+     *
+     * @return throw exception or not
+     */
+    public boolean isThrowingExceptionIfAvailableSizeLessThanDesiredSize() {
+        return throwingExceptionIfAvailableSizeLessThanDesiredSize;
+    }
+
+    /**
+     * Sets whether an exception should be thrown if the available tuple set size is less than the desired size.
+     *
+     * @param throwException throw exception or not
+     * @return this object
+     */
+    public ParamSpecs throwExceptionIfAvailableSizeIsLessThanDesiredSize(boolean throwException) {
+        this.throwingExceptionIfAvailableSizeLessThanDesiredSize = throwException;
         return this;
     }
 

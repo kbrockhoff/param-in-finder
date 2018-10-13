@@ -59,9 +59,9 @@ public class ExampleJUnitTest {
     public void testOfSomeFunctionality() {
         ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name").build())
                 .join(find(String.class).fromTable("pets").inColumn("id").build(), new JoinPair("id", "type_id"))
-                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"));
-        int size = 4;
-        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs, size);
+                .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"))
+                .retrieveTuplesSetOfSize(4).throwExceptionIfAvailableSizeIsLessThanDesiredSize(false);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
         Set<Tuple> paramTuples = future.get();
         paramTuples.forEach(t -> testGetOrQueryMethod(t));
     }

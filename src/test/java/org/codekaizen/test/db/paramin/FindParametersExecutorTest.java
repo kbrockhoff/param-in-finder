@@ -110,6 +110,20 @@ public class FindParametersExecutorTest {
     }
 
     @Test
+    public void shouldFindAsManyValidParametersAsPossibleOnSingleTableBeforeThrowingException() throws Exception {
+        int size = 4;
+        ParamSpecs paramSpecs = create(find(String.class).fromTable("specialties").inColumn("name").build())
+                .retrieveTuplesSetOfSize(size).throwExceptionIfAvailableSizeIsLessThanDesiredSize(true);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
+        try {
+            Set<Tuple> results = future.get();
+            fail("should have thrown exception");
+        } catch (ExecutionException exception) {
+            assertTrue(exception.getCause() instanceof IllegalStateException);
+        }
+    }
+
+    @Test
     public void shouldFindAllValidParametersOnJoinedTablesIfLessAvailableThenRequested() throws Exception {
         int size = 16;
         ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name").build())

@@ -57,7 +57,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
     /**
      * Constructs a retriever.
      *
-     * @param paramSpecs  the specifications on what to retrieve
+     * @param paramSpecs the specifications on what to retrieve
      */
     public DefaultFindParametersTask(ParamSpecs paramSpecs) {
         checkNotNull(paramSpecs, "paramSpecs is required");
@@ -142,6 +142,7 @@ public class DefaultFindParametersTask implements FindParametersTask {
         initiateProcessorsAndSubscriptionsIfNeeded();
         checkArgument(initialized, "retriever must be initialized before call");
         semaphore.acquire();
+        checkIfDesiredSizeMet();
         logger.trace("returning results");
         try {
             if (onErrorCause == null) {
@@ -232,6 +233,14 @@ public class DefaultFindParametersTask implements FindParametersTask {
             } catch (Exception ignore) {
                 logger.info("exception on close: {}", ignore.getMessage());
             }
+        }
+    }
+
+    private void checkIfDesiredSizeMet() {
+        if (paramSpecs.isThrowingExceptionIfAvailableSizeLessThanDesiredSize() &&
+                results.size() < paramSpecs.getDesiredTuplesSetSize()) {
+            onErrorCause =
+                    new IllegalStateException("unable to retrieve enough valid parameters before hitting request limit");
         }
     }
 
