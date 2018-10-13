@@ -173,6 +173,18 @@ public class FindParametersExecutorTest {
         assertEquals(0, results.size());
     }
 
+    @Test
+    public void shouldFindMultipleParametersInSameTable() throws Exception {
+        int size = 1;
+        ParamSpecs paramSpecs = create(find(String.class).fromTable("vets").inColumn("first_name").build())
+                .join(find(String.class).fromTable("vets").inColumn("last_name").build(), new JoinPair("id", "id"))
+                .retrieveTuplesSetOfSize(size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
+        Set<Tuple> results = future.get();
+        results.forEach(t -> logger.info("{}", t));
+        assertEquals(size, results.size());
+    }
+
     private void createAndLoadDatabase() throws SQLException, IOException {
         final List<String> schemaStmts = new ArrayList<>();
         final List<String> dataStmts = new ArrayList<>();
