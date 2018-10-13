@@ -51,6 +51,8 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
     private ResultSet resultSet;
     private final Set<Tuple> alreadySeen = new HashSet<>();
     private int totalRequests = 0;
+    private int resultSetSize = 0;
+    private boolean terminated = false;
 
     SqlQueryProcessor(ParamSpec<T> paramSpec, int batchSize, PreparedStatement statement, EventBus eventBus) {
         checkNotNull(paramSpec);
@@ -103,12 +105,14 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
     public void onError(Throwable throwable) {
         logger.trace("onError({})", throwable);
         eventBus.publish(new OnErrorEvent(getComponentId(), throwable));
+        terminated = true;
     }
 
     @Override
     public void onComplete() {
         logger.trace("onComplete()");
         eventBus.publish(new OnCompleteEvent(getComponentId()));
+        terminated = true;
     }
 
     @Override
@@ -180,18 +184,28 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
     }
 
     private void queryWithNoParameters(Tuple item) throws SQLException {
+        totalRequests++;
+        if (isTotalRequestsExceedMaximum()) {
+            return;
+        }
         retrieveResultSetIfNeeded();
         Set<T> seenThisLoop = new HashSet<>();
         if (loopThruResultSet(item, seenThisLoop)) {
             return;
         }
         closeQuietly(resultSet);
+        if (resultSetSize == 0) {
+            logger.warn("encountered empty result set");
+            eventBus.publish(new OnCompleteEvent(getComponentId()));
+            terminated = true;
+        }
         retrieveResultSetIfNeeded();
         loopThruResultSet(item, seenThisLoop);
     }
 
     private boolean loopThruResultSet(Tuple item, Set<T> seenThisLoop) throws SQLException {
         while (resultSet.next()) {
+            resultSetSize++;
             T value = retrieveValue(resultSet);
             if (seenThisLoop.contains(value)) {
                 logger.warn("{} no acceptable values are available", getProcessorName());
@@ -262,20 +276,27 @@ class SqlQueryProcessor<T extends Comparable<? super T>>
     private void retrieveResultSetIfNeeded() throws SQLException {
         if (resultSet == null || resultSet.isClosed()) {
             logger.debug("executing query to retrieve result set for {}", paramSpec);
+            resultSetSize = 0;
             resultSet = statement.executeQuery();
         }
     }
 
     private void doRequest(long l) {
-        if (totalRequests >= batchSize * TRYS_MULTIPLE) {
-            terminateDueTo(new IllegalStateException(
-                    "unable to retrieve enough valid parameters before hitting request limit of " +
-                            (batchSize * TRYS_MULTIPLE)));
-        }
-        else {
+        if (!isTotalRequestsExceedMaximum()) {
             totalRequests += l;
             subscription.request(l);
         }
+    }
+
+    private boolean isTotalRequestsExceedMaximum() {
+        boolean result = totalRequests >= batchSize * TRYS_MULTIPLE;
+        if (result) {
+            logger.warn("only able to retrieve results.size={} before exhausting the possiblities",
+                    totalRequests / TRYS_MULTIPLE);
+            eventBus.publish(new OnCompleteEvent(getComponentId()));
+            terminated = true;
+        }
+        return result;
     }
 
     private void terminateDueTo(Throwable throwable) {

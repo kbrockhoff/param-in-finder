@@ -100,33 +100,25 @@ public class FindParametersExecutorTest {
     }
 
     @Test
-    public void shouldFindAsManyValidParametersAsPossibleOnSingleTableBeforeThrowingException() throws Exception {
+    public void shouldFindAsManyValidParametersAsPossibleOnSingleTable() throws Exception {
         int size = 4;
         ParamSpecs paramSpecs = create(find(String.class).fromTable("specialties").inColumn("name").build())
                 .retrieveTuplesSetOfSize(size);
         Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
-        try {
-            Set<Tuple> results = future.get();
-            fail("should have thrown exception");
-        } catch (ExecutionException exception) {
-            assertTrue(exception.getCause() instanceof IllegalStateException);
-        }
+        Set<Tuple> results = future.get();
+        assertTrue(results.size() < size);
     }
 
     @Test
-    public void shouldFindValidParametersOnJoinedTablesBeforeThrowingException() throws Exception {
+    public void shouldFindAllValidParametersOnJoinedTablesIfLessAvailableThenRequested() throws Exception {
         int size = 16;
         ParamSpecs paramSpecs = create(find(String.class).fromTable("types").inColumn("name").build())
                 .join(find(String.class).fromTable("pets").inColumn("id").build(), new JoinPair("id", "type_id"))
                 .join(find(String.class).fromTable("owners").inColumn("city").build(), new JoinPair("owner_id", "id"))
                 .retrieveTuplesSetOfSize(size);
         Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
-        try {
-            Set<Tuple> results = future.get();
-            fail("should have thrown exception");
-        } catch (ExecutionException exception) {
-            assertTrue(exception.getCause() instanceof IllegalStateException);
-        }
+        Set<Tuple> results = future.get();
+        assertTrue(results.size() < size);
     }
 
     @Test
@@ -155,6 +147,16 @@ public class FindParametersExecutorTest {
             Set<Tuple> results = future.get();
             assertEquals(size, results.size());
         }
+    }
+
+    @Test
+    public void shouldFindNoParametersOnTableWithNoData() throws Exception {
+        int size = 1;
+        ParamSpecs paramSpecs = create(find(String.class).fromTable("no_data").inColumn("name").build())
+                .retrieveTuplesSetOfSize(size);
+        Future<Set<Tuple>> future = findParametersExecutor.findValidParameters(paramSpecs);
+        Set<Tuple> results = future.get();
+        assertEquals(0, results.size());
     }
 
     private void createAndLoadDatabase() throws SQLException, IOException {
@@ -219,7 +221,7 @@ public class FindParametersExecutorTest {
                 }
             }
             conn.commit();
-            assertEquals(7, counter);
+            assertEquals(8, counter);
         }
     }
 

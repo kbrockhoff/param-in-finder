@@ -113,9 +113,6 @@ public class DefaultFindParametersTask implements FindParametersTask {
         } else if (totalRequests > paramSpecs.getDesiredTuplesSetSize() * TRYS_MULTIPLE) {
             subscription.cancel();
             logger.warn("only able to retrieve results.size={} before exhausting the possiblities", results.size());
-            onError(new IllegalStateException(
-                    "unable to retrieve enough valid parameters before hitting request limit of " +
-                            (paramSpecs.getDesiredTuplesSetSize() * TRYS_MULTIPLE)));
         } else {
             doRequest();
         }
