@@ -36,6 +36,13 @@ public interface FindParametersTask extends Callable<Set<Tuple>>, AutoCloseable,
     ParamSpecs getParamSpecs();
 
     /**
+     * Sets the database product and associated SQL dialect queries are being run against.
+     *
+     * @param database the brand of database
+     */
+    void setDatabase(Database database);
+
+    /**
      * Initializes the reactive stream based retrieval flow task.
      *
      * @param connection the database connection to use in querying for data

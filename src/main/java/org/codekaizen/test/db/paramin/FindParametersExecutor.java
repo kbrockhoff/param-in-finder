@@ -46,6 +46,7 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
 
     private final Logger logger = LoggerFactory.getLogger(FindParametersExecutor.class);
     private final DataSource dataSource;
+    private final Database database;
     private final ThreadFactory backingThreadFactory;
     private final AtomicLong threadCounter;
     private ExecutorService executorService;
@@ -63,6 +64,7 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
         logger.trace("FindParametersExecutor({})", dataSource);
         checkNotNull(dataSource, "dataSource is required parameter");
         this.dataSource = dataSource;
+        this.database = lookupDatabase(dataSource);
         this.backingThreadFactory = Executors.defaultThreadFactory();
         this.threadCounter = new AtomicLong(0l);
         this.executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE, r -> constructWorkerThread(r));
@@ -118,7 +120,12 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
         logger.trace("subscribe({})", subscriber);
         checkArgument(subscriber instanceof FindParametersTask, "subscriber must implement FindParametersTask");
         FindParametersTask task = (FindParametersTask) subscriber;
+        task.setDatabase(getDatabase());
         task.initialize(getConnection(), getEventBus());
+    }
+
+    Database getDatabase() {
+        return database;
     }
 
     private Connection getConnection() {
@@ -143,6 +150,20 @@ public class FindParametersExecutor implements Publisher<Tuple>, AutoCloseable {
         Thread thread = backingThreadFactory.newThread(runnable);
         thread.setName(BUS_THREAD_NAME);
         return thread;
+    }
+
+    private Database lookupDatabase(DataSource dataSource) {
+        Database result = Database.DEFAULT;
+        try (Connection conn = dataSource.getConnection()) {
+            DatabaseMetaData metaData = conn.getMetaData();
+            String databaseProductName = metaData.getDatabaseProductName();
+            logger.debug("databaseProductName={}", databaseProductName);
+            result = Database.getDatabaseForProductName(databaseProductName);
+            logger.debug("calculated database={}", result);
+        } catch (SQLException cause) {
+            throw new IllegalStateException("unable to retrieve database metaData", cause);
+        }
+        return result;
     }
 
 }

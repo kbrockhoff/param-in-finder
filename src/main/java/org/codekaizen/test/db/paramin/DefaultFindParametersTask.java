@@ -21,10 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Semaphore;
 
 import static org.codekaizen.test.db.paramin.Preconditions.checkArgument;
@@ -39,12 +36,15 @@ import static org.codekaizen.test.db.paramin.Preconditions.checkNotNull;
 public class DefaultFindParametersTask implements FindParametersTask {
 
     private static final int TRYS_MULTIPLE = 4;
+    private static final int RECS_MULTIPLE = 16;
+    private static final int MIN_RECS = 10;
 
     private final Logger logger = LoggerFactory.getLogger(DefaultFindParametersTask.class);
     private final String componentId;
     private final ParamSpecs paramSpecs;
     private final Set<Tuple> results;
     private final Semaphore semaphore;
+    private Database database = Database.DEFAULT;
     private Connection connection;
     private EventBus eventBus;
     private LinkedList<SqlQueryProcessor> processors = new LinkedList<>();
@@ -75,6 +75,12 @@ public class DefaultFindParametersTask implements FindParametersTask {
     @Override
     public ParamSpecs getParamSpecs() {
         return paramSpecs;
+    }
+
+    @Override
+    public void setDatabase(Database database) {
+        checkNotNull(database, "database cannot be null");
+        this.database = database;
     }
 
     @Override
@@ -196,8 +202,13 @@ public class DefaultFindParametersTask implements FindParametersTask {
             SqlQueryProcessor previous = null;
             Connection conn = getConnection();
             for (ParamSpec spec : specs.getParamSpecs()) {
+                String sql = specs.getSqlStatement(spec);
+                if (previous == null) {
+                    sql = addRowsReturnedLimit(specs, sql);
+                    logger.debug("restricted row count query: {}", sql);
+                }
                 SqlQueryProcessor proc = new SqlQueryProcessor(spec, specs.getDesiredTuplesSetSize(),
-                        conn.prepareStatement(specs.getSqlStatement(spec)), eventBus);
+                        conn.prepareStatement(sql), eventBus);
                 processors.add(proc);
                 if (previous != null) {
                     previous.subscribe(proc);
@@ -209,6 +220,18 @@ public class DefaultFindParametersTask implements FindParametersTask {
             throw new IllegalStateException(cause);
         }
         return processors;
+    }
+
+    private String addRowsReturnedLimit(ParamSpecs specs, String sql) {
+        StringBuilder builder = new StringBuilder(sql);
+        int rowCount = specs.getDesiredTuplesSetSize() * RECS_MULTIPLE;
+        rowCount = rowCount < MIN_RECS ? MIN_RECS : rowCount;
+        Object[] args = new Object[2];
+        args[0] = rowCount;
+        args[1] = sql.contains(" WHERE ") ? "AND" : "WHERE";
+        Formatter formatter = new Formatter(builder);
+        formatter.format(database.getLimitClause(), args);
+        return builder.toString();
     }
 
     private Connection getConnection() {
