@@ -236,7 +236,9 @@ public class ParamSpec<T extends Comparable<? super T>> {
      * @return acceptable or not
      */
     public boolean isAcceptableValue(T value) {
-        checkNotNull(value, "value is required parameter");
+        if (value == null) {
+            return false;
+        }
         return matcher.isAcceptableValue(value);
     }
 

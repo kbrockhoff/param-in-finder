@@ -120,4 +120,11 @@ public class ParamSpecTest {
         assertEquals("ranking", requirement.getColumn());
     }
 
+    @Test
+    public void shouldAlwaysConsiderNullValueAsUnacceptableValue() {
+        ParamSpec<BigDecimal> requirement = ParamSpec.find(String.class)
+                .fromTable("users").inColumn("username").build();
+        assertFalse(requirement.isAcceptableValue(null));
+    }
+
 }
