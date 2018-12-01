@@ -6,7 +6,7 @@
 
   <groupId>org.codekaizen.testing</groupId>
   <artifactId>param-in-finder</artifactId>
-  <version>1.3.0</version>
+  <version>1.4-SNAPSHOT</version>
 
   <name>Test Case In Parameter Finder</name>
   <description>Retrieves query parameter values from RDBMS existing data for use in testing.</description>
